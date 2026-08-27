@@ -11,9 +11,52 @@ const storage = {
   token: "earlySleep.token",
   phone: "earlySleep.phone",
   joinCode: "earlySleep.joinCode",
+  family: "earlySleep.family.v1",
 };
 
 const configuredBackend = import.meta.env.VITE_API_BASE_URL ?? "";
+
+type FamilyCache = {
+  version: 1;
+  backendURL: string;
+  family: Family;
+};
+
+function normalizedBackend(value: string) {
+  return value.replace(/\/$/, "");
+}
+
+function readCachedFamily(backendURL: string): Family | null {
+  try {
+    const raw = localStorage.getItem(storage.family);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as Partial<FamilyCache>;
+    if (
+      cached.version !== 1
+      || normalizedBackend(cached.backendURL ?? "") !== normalizedBackend(backendURL)
+      || !cached.family?.id
+      || !cached.family.currentMember?.id
+      || !cached.family.activeWeek?.weekStart
+    ) return null;
+    return cached.family;
+  } catch {
+    localStorage.removeItem(storage.family);
+    return null;
+  }
+}
+
+function writeCachedFamily(backendURL: string, family: Family) {
+  const cached: FamilyCache = {
+    version: 1,
+    backendURL: normalizedBackend(backendURL),
+    family,
+  };
+  try {
+    localStorage.setItem(storage.family, JSON.stringify(cached));
+  } catch {
+    // The server remains the source of truth if the WebView storage quota is full.
+  }
+}
 
 const personalRewardTiers = [
   { minimum: 10, range: "10～14 分", added: 20, total: 20 },
@@ -47,11 +90,12 @@ export default function App() {
   const [backendURL, setBackendURL] = useState(localStorage.getItem(storage.backend) ?? configuredBackend);
   const [token, setToken] = useState(localStorage.getItem(storage.token) ?? "");
   const [joinCode, setJoinCode] = useState(localStorage.getItem(storage.joinCode) ?? "");
-  const [family, setFamily] = useState<Family | null>(null);
+  const [family, setFamily] = useState<Family | null>(() => token ? readCachedFamily(backendURL) : null);
   const [tab, setTab] = useState<Tab>("home");
   const [loading, setLoading] = useState(Boolean(token));
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [startupRetry, setStartupRetry] = useState(0);
   const [syncState, setSyncState] = useState<SyncState>(token ? "syncing" : "offline");
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const client = useMemo(() => new APIClient(backendURL, token), [backendURL, token]);
@@ -59,13 +103,14 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
+    setError("");
     setSyncState("syncing");
     client.family().then(acceptFamily).catch((reason) => {
       setSyncState("offline");
       setError(messageOf(reason));
       if (reason instanceof APIError && reason.code === "unauthorized") clearSession();
     }).finally(() => setLoading(false));
-  }, [client, token]);
+  }, [client, token, startupRetry]);
 
   useEffect(() => {
     if (!token) return;
@@ -92,6 +137,7 @@ export default function App() {
 
   function acceptFamily(nextFamily: Family) {
     setFamily(nextFamily);
+    writeCachedFamily(backendURL, nextFamily);
     setLastSyncedAt(new Date());
     setSyncState("synced");
   }
@@ -112,6 +158,7 @@ export default function App() {
     localStorage.removeItem(storage.token);
     localStorage.removeItem(storage.phone);
     localStorage.removeItem(storage.joinCode);
+    localStorage.removeItem(storage.family);
     setToken("");
     setJoinCode("");
     setFamily(null);
@@ -158,7 +205,7 @@ export default function App() {
     }
   }
 
-  if (!token || !family) {
+  if (!token) {
     return (
       <Setup
         backendURL={backendURL}
@@ -168,6 +215,18 @@ export default function App() {
         onError={setError}
         onLoading={setLoading}
         onSession={saveSession}
+      />
+    );
+  }
+
+  if (!family) {
+    return (
+      <Startup
+        backendURL={backendURL}
+        loading={loading}
+        error={error}
+        onRetry={() => setStartupRetry((value) => value + 1)}
+        onReset={clearSession}
       />
     );
   }
@@ -204,6 +263,27 @@ export default function App() {
         <NavButton active={tab === "settings"} label="设置" icon="⚙" onClick={() => setTab("settings")} />
       </nav>
       {loading && <div className="loading-line" />}
+    </div>
+  );
+}
+
+function Startup({ backendURL, loading, error, onRetry, onReset }: { backendURL: string; loading: boolean; error: string; onRetry: () => void; onReset: () => void }) {
+  return (
+    <div className="startup-page">
+      <div className="moon-mark"><span>☾</span></div>
+      <p className="eyebrow">TWO PEOPLE · ONE SMALL PROMISE</p>
+      <h1>一起早点睡</h1>
+      {!error ? (
+        <div className="startup-status"><i /><span>正在恢复你们的早睡计划…</span></div>
+      ) : (
+        <div className="startup-error">
+          <strong>暂时无法恢复数据</strong>
+          <p>{error}</p>
+          <small>{backendURL || "尚未配置后端地址"}</small>
+          <button className="primary wide" disabled={loading} onClick={onRetry}>{loading ? "正在重试…" : "重新连接"}</button>
+          <button className="startup-reset" disabled={loading} onClick={onReset}>返回登录与服务器设置</button>
+        </div>
+      )}
     </div>
   );
 }

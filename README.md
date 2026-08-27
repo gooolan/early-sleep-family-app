@@ -61,7 +61,7 @@ curl http://服务器地址:8080/ping
 
 ### 2. 安装安卓 App
 
-将 `dist/android/early-sleep-family-release.apk` 发送到安卓手机并允许“安装未知来源应用”。当前产物为 `1.2.0`（versionCode 3）正式 Release 包，已使用项目专用 RSA 4096 位证书签名。
+将 `dist/android/early-sleep-family-release.apk` 发送到安卓手机并允许“安装未知来源应用”。当前产物为 `1.2.1`（versionCode 4）正式 Release 包，已使用项目专用 RSA 4096 位证书签名。
 
 如果手机上安装的是旧 debug 签名版本，需要先卸载旧 App 再安装 Release 包；Android 不允许不同签名直接覆盖安装。家庭数据保存在后端，重新输入相同服务器地址和手机号即可恢复身份与数据。
 

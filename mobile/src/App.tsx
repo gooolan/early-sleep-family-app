@@ -709,7 +709,7 @@ function ReviewView({ family, loading, owner, onCompleteReview, onBack }: { fami
     <div className="page-stack">
       <SettingsBack eyebrow="30-DAY REVIEW" title="30 天规则复盘" onBack={onBack} />
       <section className="card review-overview">
-        <div><span>本周期</span><strong>{metrics.start} — {metrics.end}</strong><small>已统计 {metrics.elapsedDays} 天</small></div>
+        <div><span>本周期</span><strong className="review-period"><span>{metrics.start}</span>{metrics.start !== metrics.end && <span>至 {metrics.end}</span>}</strong><small>已统计 {metrics.elapsedDays} 天</small></div>
         <div><span>双人完成度</span><strong>{metrics.completionRate}%</strong><small>豁免按有效记录计算</small></div>
         <div><span>完整周奖励参考</span><strong>{metrics.rewardReference} 元</strong><small>{metrics.rewardWeeks} 个完整周，仍需手工结算</small></div>
       </section>

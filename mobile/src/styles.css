@@ -169,10 +169,12 @@ h3 { margin-bottom: 12px; }
 .review-card.due { border-color: #ecd4c4; background: #fff8f1; }
 .review-open { border: 0; border-radius: 11px; color: #53766b; font-weight: 700; background: #e4f0eb; }
 .review-card.due .review-open { color: #986248; background: #f8e5d7; }
-.review-overview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 13px; }
+.review-overview { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .9fr) minmax(0, 1.15fr); gap: 8px; padding: 13px; }
 .review-overview > div { display: grid; align-content: start; gap: 4px; min-height: 92px; padding: 12px; border-radius: 14px; background: #f1f7f4; }
 .review-overview span { color: #7c9089; font-size: 9px; }
 .review-overview strong { color: #365d52; font-family: Georgia, serif; font-size: 16px; line-height: 1.35; }
+.review-overview .review-period { display: grid; gap: 1px; }
+.review-overview .review-period span { color: inherit; font: inherit; white-space: nowrap; }
 .review-overview small { color: #8d9c97; font-size: 8px; line-height: 1.5; }
 .review-member-list { display: grid; gap: 12px; }
 .review-member { display: grid; gap: 15px; }
@@ -343,5 +345,5 @@ h3 { margin-bottom: 12px; }
 .completion-line i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6ca591, #e0ad78); }
 .completion-line strong { color: #4f796c; }
 .inline-error { margin: -3px 0 12px; padding: 10px 12px; border-radius: 10px; color: #9f514a; font-size: 11px; background: #fbe8e5; }
-@media (max-width: 480px) { .history-week-toggle { grid-template-columns: 1fr auto 16px; } .history-week-numbers { grid-row: 2; grid-column: 1 / -1; width: 100%; padding-top: 8px; border-top: 1px solid #e7efeb; } .history-week-numbers > span { text-align: left; } .history-week-toggle .grade-badge { grid-column: 2; grid-row: 1; } .history-week-toggle > em { grid-column: 3; grid-row: 1; } .backup-block { grid-template-columns: 42px 1fr; } .backup-block > button, .backup-block > .restore-file { grid-column: 2; justify-self: start; } }
+@media (max-width: 480px) { .history-week-toggle { grid-template-columns: 1fr auto 16px; } .history-week-numbers { grid-row: 2; grid-column: 1 / -1; width: 100%; padding-top: 8px; border-top: 1px solid #e7efeb; } .history-week-numbers > span { text-align: left; } .history-week-toggle .grade-badge { grid-column: 2; grid-row: 1; } .history-week-toggle > em { grid-column: 3; grid-row: 1; } .review-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } .review-overview > div:first-child { grid-column: 1 / -1; min-height: 0; } .review-overview > div:first-child .review-period { display: flex; flex-wrap: wrap; gap: 2px 8px; } .backup-block { grid-template-columns: 42px 1fr; } .backup-block > button, .backup-block > .restore-file { grid-column: 2; justify-self: start; } }
 @media (max-width: 370px) { .app-shell { padding-inline: 12px; } .ideal-time { font-size: 56px; } .score-board { grid-template-columns: 1fr; } .day-row { grid-template-columns: 36px 1fr auto; gap: 7px; } .day-members > .member-record { grid-template-columns: 6px 34px 44px auto; gap: 4px; } .approval-item { grid-template-columns: 30px 1fr; } .approval-actions, .waiting-pill { grid-column: 2; justify-self: start; } }

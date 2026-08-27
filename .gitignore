@@ -1,0 +1,16 @@
+.DS_Store
+mobile/node_modules/
+mobile/dist/
+mobile/*.tsbuildinfo
+mobile/.env.production
+mobile/.env.local
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/**/build/
+mobile/android/keystore.properties
+mobile/android/signing/
+server/data/*.json
+server/data/*.bak
+server/data/*.tmp
+*.log

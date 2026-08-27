@@ -1,0 +1,19 @@
+[Unit]
+Description=Early Sleep Family API
+After=network.target
+
+[Service]
+Type=simple
+User=early-sleep
+Group=early-sleep
+WorkingDirectory=/opt/early-sleep
+Environment=LISTEN_ADDR=:8080
+Environment=DATA_DIR=/var/lib/early-sleep
+ExecStart=/opt/early-sleep/early-sleep-server-linux-amd64
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

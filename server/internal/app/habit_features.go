@@ -26,6 +26,10 @@ func (service *Service) RequestExemption(ctx context.Context, token string, requ
 	if err != nil {
 		return FamilyView{}, err
 	}
+	err = service.validateReachedDate(family, date)
+	if err != nil {
+		return FamilyView{}, err
+	}
 	changeID, err := randomID("exc_", 7)
 	if err != nil {
 		return FamilyView{}, err
@@ -101,6 +105,42 @@ func (service *Service) ReviewExemptionChange(ctx context.Context, token string,
 				return ErrExemptionLimit
 			}
 			applyExemption(current, change.MemberID, change.Date, service.now().UTC())
+		}
+		current.PendingExemptions = append(current.PendingExemptions[:index], current.PendingExemptions[index+1:]...)
+		if current.PendingExemptions == nil {
+			current.PendingExemptions = make([]ExemptionChange, 0)
+		}
+		return nil
+	})
+	if err != nil {
+		return FamilyView{}, err
+	}
+	return service.buildFamilyView(family, member.ID)
+}
+
+func (service *Service) CancelExemptionChange(ctx context.Context, token string, changeID string) (FamilyView, error) {
+	changeID = strings.TrimSpace(changeID)
+	if changeID == "" {
+		return FamilyView{}, fmt.Errorf("%w: change id is required", ErrInvalidInput)
+	}
+	family, member, err := service.authenticate(ctx, token)
+	if err != nil {
+		return FamilyView{}, err
+	}
+
+	family, err = service.store.Update(ctx, family.ID, func(current *Family) error {
+		index := -1
+		for candidateIndex, candidate := range current.PendingExemptions {
+			if candidate.ID == changeID {
+				index = candidateIndex
+				if candidate.RequestedBy != member.ID {
+					return ErrNotRequester
+				}
+				break
+			}
+		}
+		if index < 0 {
+			return ErrNotFound
 		}
 		current.PendingExemptions = append(current.PendingExemptions[:index], current.PendingExemptions[index+1:]...)
 		if current.PendingExemptions == nil {

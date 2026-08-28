@@ -135,6 +135,7 @@ h3 { margin-bottom: 12px; }
 .tier-head { padding: 0 8px 5px; color: #989ca4; font-size: 10px; }
 .tier-row { margin-top: 7px; }
 .tier-row input { padding: 9px 7px; border-radius: 9px; font-size: 12px; text-align: center; }
+.rules-card.readonly input:disabled { color: #3f5f56; opacity: 1; -webkit-text-fill-color: #3f5f56; }
 .after { display: grid; place-items: center; color: #777e8b; font-size: 12px; }
 .exit-button { border: 0; padding: 12px; color: #b6534c; background: transparent; }
 .settings-menu h2 { margin-bottom: 0; }
@@ -245,7 +246,8 @@ h3 { margin-bottom: 12px; }
 .approval-actions { display: flex; gap: 5px; }
 .approval-actions button { border: 0; border-radius: 9px; padding: 7px 8px; color: #826d67; font-size: 10px; background: #f4eeea; }
 .approval-actions button.approve { color: white; background: #65a18e; }
-.waiting-pill { padding: 6px 8px; border-radius: 99px; color: #a66b5d; font-size: 9px; background: #f6e3dc; }
+.waiting-pill, .cancel-pill { padding: 6px 8px; border-radius: 99px; color: #a66b5d; font-size: 9px; background: #f6e3dc; }
+.cancel-pill { border: 1px solid #e9c9bc; font-weight: 700; }
 .small-copy { font-size: 10px; }
 .records-card { padding-bottom: 7px; }
 .exemption-budget { display: grid; gap: 12px; }
@@ -277,7 +279,6 @@ h3 { margin-bottom: 12px; }
 .time-picker select { height: 70px; padding: 10px 17px; border: 0; border-radius: 18px; font-family: Georgia, serif; font-size: 34px; text-align: center; background: #edf6f2; }
 .time-picker b { padding-bottom: 14px; color: #66877e; font-family: Georgia, serif; font-size: 33px; }
 .approval-note { margin: 13px 2px 17px; color: #82928d; font-size: 11px; line-height: 1.7; text-align: center; }
-.sheet-delete { display: block; width: 100%; margin-top: 11px; border: 0; padding: 10px; color: #b45f55; font-size: 11px; background: transparent; }
 .sheet-exempt { display: block; width: 100%; margin-top: 4px; border: 1px solid #dce9e3; border-radius: 12px; padding: 11px; color: #52776c; font-size: 11px; font-weight: 700; background: #f1f8f5; }
 .exemption-note { display: block; margin: 8px 7px 0; color: #87958f; font-size: 9px; line-height: 1.6; text-align: center; }
 .exemption-approval .approval-icon { color: #4f7a6d; background: #dfeee8; }
@@ -355,4 +356,4 @@ h3 { margin-bottom: 12px; }
 .completion-line strong { color: #4f796c; }
 .inline-error { margin: -3px 0 12px; padding: 10px 12px; border-radius: 10px; color: #9f514a; font-size: 11px; background: #fbe8e5; }
 @media (max-width: 480px) { .history-week-toggle { grid-template-columns: 1fr auto 16px; } .history-week-numbers { grid-row: 2; grid-column: 1 / -1; width: 100%; padding-top: 8px; border-top: 1px solid #e7efeb; } .history-week-numbers > span { text-align: left; } .history-week-toggle .grade-badge { grid-column: 2; grid-row: 1; } .history-week-toggle > em { grid-column: 3; grid-row: 1; } .review-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } .review-overview > div:first-child { grid-column: 1 / -1; min-height: 0; } .review-overview > div:first-child .review-period { display: flex; flex-wrap: wrap; gap: 2px 8px; } .backup-block { grid-template-columns: 42px 1fr; } .backup-block > button, .backup-block > .restore-file { grid-column: 2; justify-self: start; } }
-@media (max-width: 370px) { .app-shell { padding-inline: 12px; } .ideal-time { font-size: 56px; } .score-board { grid-template-columns: 1fr; } .day-row { grid-template-columns: 36px 1fr auto; gap: 7px; } .day-members > .member-record { grid-template-columns: 6px 34px 44px auto; gap: 4px; } .approval-item { grid-template-columns: 30px 1fr; } .approval-actions, .waiting-pill { grid-column: 2; justify-self: start; } }
+@media (max-width: 370px) { .app-shell { padding-inline: 12px; } .ideal-time { font-size: 56px; } .score-board { grid-template-columns: 1fr; } .day-row { grid-template-columns: 36px 1fr auto; gap: 7px; } .day-members > .member-record { grid-template-columns: 6px 34px 44px auto; gap: 4px; } .approval-item { grid-template-columns: 30px 1fr; } .approval-actions, .waiting-pill, .cancel-pill { grid-column: 2; justify-self: start; } }

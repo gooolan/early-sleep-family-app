@@ -75,13 +75,13 @@ export class APIClient {
     });
   }
 
-  async deleteCheckin(date: string): Promise<Family> {
-    return this.data<Family>(`/api/v1/checkins/${date}`, { method: "DELETE" });
-  }
-
   async reviewCheckinChange(changeID: string, approve: boolean): Promise<Family> {
     const action = approve ? "approve" : "reject";
     return this.data<Family>(`/api/v1/checkin-changes/${changeID}/${action}`, { method: "POST" });
+  }
+
+  async cancelCheckinChange(changeID: string): Promise<Family> {
+    return this.data<Family>(`/api/v1/checkin-changes/${changeID}/cancel`, { method: "POST" });
   }
 
   async requestExemption(date: string): Promise<Family> {
@@ -94,6 +94,10 @@ export class APIClient {
   async reviewExemptionChange(changeID: string, approve: boolean): Promise<Family> {
     const action = approve ? "approve" : "reject";
     return this.data<Family>(`/api/v1/exemption-changes/${changeID}/${action}`, { method: "POST" });
+  }
+
+  async cancelExemptionChange(changeID: string): Promise<Family> {
+    return this.data<Family>(`/api/v1/exemption-changes/${changeID}/cancel`, { method: "POST" });
   }
 
   async completeRewardReview(): Promise<Family> {

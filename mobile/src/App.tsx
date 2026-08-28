@@ -251,7 +251,7 @@ export default function App() {
         {notice && <div className="toast success">{notice}</div>}
         {error && <div className="toast error">{error}<button onClick={() => setError("")}>×</button></div>}
         {tab === "home" && <Home family={family} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} />}
-        {tab === "records" && <Records family={family} loading={loading} onSave={(date, time) => run(() => client.saveCheckin(date, time), approvalMessage)} onDelete={(date) => run(() => client.deleteCheckin(date), family.members.length > 1 ? "删除申请已发送给对方确认" : "记录已删除")} onReview={(id, approve) => run(() => client.reviewCheckinChange(id, approve), approve ? "修改已确认，本周分数已更新" : "修改已拒绝")} onExempt={(date) => run(() => client.requestExemption(date), family.members.length > 1 ? "豁免申请已发送给对方确认" : "本日已豁免")} onReviewExemption={(id, approve) => run(() => client.reviewExemptionChange(id, approve), approve ? "豁免已确认，本日记为 0 分、0 罚金" : "豁免申请已拒绝")} />}
+        {tab === "records" && <Records family={family} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} onSave={(date, time) => run(() => client.saveCheckin(date, time), approvalMessage)} onReview={(id, approve) => run(() => client.reviewCheckinChange(id, approve), approve ? "修改已确认，本周分数已更新" : "修改已拒绝")} onCancel={(id) => run(() => client.cancelCheckinChange(id), "修改申请已撤回")} onExempt={(date) => run(() => client.requestExemption(date), family.members.length > 1 ? "豁免申请已发送给对方确认" : "本日已豁免")} onReviewExemption={(id, approve) => run(() => client.reviewExemptionChange(id, approve), approve ? "豁免已确认，本日记为 0 分、0 罚金" : "豁免申请已拒绝")} onCancelExemption={(id) => run(() => client.cancelExemptionChange(id), "豁免申请已撤回")} />}
         {tab === "archives" && <WeeklyReports family={family} />}
         {tab === "settings" && <SettingsView family={family} backendURL={backendURL} joinCode={joinCode} loading={loading} onSave={(settings) => run(() => client.saveSettings(settings), "本周设置已保存")} onCompleteReview={() => run(() => client.completeRewardReview(), "已完成本轮 30 天规则复盘")} onExport={exportBackup} onRestore={(backup) => run(() => client.restoreFamily(backup), "家庭数据已从备份恢复")} onExit={clearSession} />}
       </main>
@@ -457,7 +457,7 @@ function Home({ family, loading, onCheckIn }: { family: Family; loading: boolean
   );
 }
 
-function Records({ family, loading, onSave, onDelete, onReview, onExempt, onReviewExemption }: { family: Family; loading: boolean; onSave: (date: string, time: string) => void; onDelete: (date: string) => void; onReview: (id: string, approve: boolean) => void; onExempt: (date: string) => void; onReviewExemption: (id: string, approve: boolean) => void }) {
+function Records({ family, loading, onCheckIn, onSave, onReview, onCancel, onExempt, onReviewExemption, onCancelExemption }: { family: Family; loading: boolean; onCheckIn: () => void; onSave: (date: string, time: string) => void; onReview: (id: string, approve: boolean) => void; onCancel: (id: string) => void; onExempt: (date: string) => void; onReviewExemption: (id: string, approve: boolean) => void; onCancelExemption: (id: string) => void }) {
   const [editor, setEditor] = useState<{ date: string; time: string; hasRecord: boolean } | null>(null);
   const me = family.currentMember;
   const days = dateRange(family.activeWeek.weekStart, family.activeWeek.weekEnd);
@@ -468,6 +468,7 @@ function Records({ family, loading, onSave, onDelete, onReview, onExempt, onRevi
   const incomingExemptions = exemptions.filter((change) => change.requestedBy !== me.id);
   const outgoingExemptions = exemptions.filter((change) => change.requestedBy === me.id);
   const exemptionUsage = monthlyExemptionUsage(family);
+  const reachedDate = currentNightDate(family.timezone, family.activeWeek.settings.cutoffHour);
 
   function openEditor(day: string, value?: string) {
     setEditor({ date: day, time: nearestFiveMinutes(value ?? "23:00"), hasRecord: Boolean(value) });
@@ -489,9 +490,9 @@ function Records({ family, loading, onSave, onDelete, onReview, onExempt, onRevi
         <section className="approval-center">
           <div className="section-title"><div><span className="eyebrow">CHECK TOGETHER</span><h2>双人确认</h2></div><span className="notification-count">{pending.length + exemptions.length}</span></div>
           {incoming.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReview} />)}
-          {outgoing.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReview} />)}
+          {outgoing.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReview} onCancel={onCancel} />)}
           {incomingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReviewExemption} />)}
-          {outgoingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReviewExemption} />)}
+          {outgoingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReviewExemption} onCancel={onCancelExemption} />)}
         </section>
       )}
 
@@ -503,6 +504,7 @@ function Records({ family, loading, onSave, onDelete, onReview, onExempt, onRevi
             const mine = result?.members[me.id];
             const myPending = pending.find((change) => change.memberId === me.id && change.date === day);
             const myExemptionPending = exemptions.find((change) => change.memberId === me.id && change.date === day);
+            const future = day > reachedDate;
             return (
               <div className="day-row" key={day}>
                 <div className="date-badge"><strong>{new Date(`${day}T12:00:00`).getDate()}</strong><span>{weekday(day)}</span></div>
@@ -516,14 +518,14 @@ function Records({ family, loading, onSave, onDelete, onReview, onExempt, onRevi
                         <span>{member.name}</span>
                         <strong className={record?.exempt ? "exempt-label" : ""}>{record ? record.exempt ? "已豁免" : record.time : "未打卡"}</strong>
                         {record && <em className={record.score >= 0 ? "positive" : "negative"}>{scoreText(record.score)}</em>}
-                        {change && <small>{change.kind === "delete" ? "申请删除" : `${change.originalTime || "补卡"} → ${change.proposedTime}`} · 待确认</small>}
+                        {change && <small>{change.originalTime || "补卡"} → {change.proposedTime} · 待确认</small>}
                         {exemptions.find((candidate) => candidate.memberId === member.id && candidate.date === day) && <small>特殊情况豁免 · 待确认</small>}
                       </div>
                     );
                   })}
                 </div>
                 <div className="row-actions">
-                  <button className={myPending || myExemptionPending ? "pending-button" : ""} onClick={() => openEditor(day, mine?.exempt ? undefined : mine?.time)} disabled={loading || Boolean(mine?.exempt)}>{mine?.exempt ? "已豁免" : myExemptionPending ? "豁免待确认" : myPending ? "修改申请" : mine ? "编辑" : "补卡"}</button>
+                  {!future && <button className={myPending || myExemptionPending ? "pending-button" : ""} onClick={() => day === reachedDate && !mine && !myPending && !myExemptionPending ? onCheckIn() : openEditor(day, mine?.exempt ? undefined : mine?.time)} disabled={loading || Boolean(mine?.exempt)}>{mine?.exempt ? "已豁免" : myExemptionPending ? "豁免待确认" : myPending ? "修改申请" : mine ? "编辑" : day === reachedDate ? "打卡" : "补卡"}</button>}
                 </div>
               </div>
             );
@@ -531,34 +533,34 @@ function Records({ family, loading, onSave, onDelete, onReview, onExempt, onRevi
         </div>
       </section>
 
-      {editor && <EditSheet editor={editor} loading={loading} onClose={() => setEditor(null)} onSave={(date, time) => { onSave(date, time); setEditor(null); }} onDelete={(date) => { onDelete(date); setEditor(null); }} onExempt={(date) => { onExempt(date); setEditor(null); }} />}
+      {editor && <EditSheet editor={editor} loading={loading} onClose={() => setEditor(null)} onSave={(date, time) => { onSave(date, time); setEditor(null); }} onExempt={(date) => { onExempt(date); setEditor(null); }} />}
     </div>
   );
 }
 
-function ExemptionApprovalItem({ change, members, canReview, loading, onReview }: { change: PendingExemption; members: Member[]; canReview: boolean; loading: boolean; onReview: (id: string, approve: boolean) => void }) {
+function ExemptionApprovalItem({ change, members, canReview, loading, onReview, onCancel }: { change: PendingExemption; members: Member[]; canReview: boolean; loading: boolean; onReview: (id: string, approve: boolean) => void; onCancel?: (id: string) => void }) {
   const requester = members.find((member) => member.id === change.requestedBy);
   return (
     <div className="approval-item exemption-approval">
       <span className="approval-icon">○</span>
       <div><strong>{requester?.name ?? "对方"} · {formatDate(change.date)}</strong><p>申请特殊情况豁免：0 分、0 罚金</p></div>
-      {canReview ? <div className="approval-actions"><button disabled={loading} onClick={() => onReview(change.id, false)}>拒绝</button><button className="approve" disabled={loading} onClick={() => onReview(change.id, true)}>同意</button></div> : <span className="waiting-pill">等待对方</span>}
+      {canReview ? <div className="approval-actions"><button disabled={loading} onClick={() => onReview(change.id, false)}>拒绝</button><button className="approve" disabled={loading} onClick={() => onReview(change.id, true)}>同意</button></div> : <button className="cancel-pill" disabled={loading} onClick={() => onCancel?.(change.id)}>撤回</button>}
     </div>
   );
 }
 
-function ApprovalItem({ change, members, canReview, loading, onReview }: { change: PendingChange; members: Member[]; canReview: boolean; loading: boolean; onReview: (id: string, approve: boolean) => void }) {
+function ApprovalItem({ change, members, canReview, loading, onReview, onCancel }: { change: PendingChange; members: Member[]; canReview: boolean; loading: boolean; onReview: (id: string, approve: boolean) => void; onCancel?: (id: string) => void }) {
   const requester = members.find((member) => member.id === change.requestedBy);
   return (
     <div className="approval-item">
-      <span className="approval-icon">{change.kind === "delete" ? "⌫" : "↻"}</span>
-      <div><strong>{requester?.name ?? "对方"} · {formatDate(change.date)}</strong><p>{change.kind === "delete" ? `申请删除 ${change.originalTime}` : `${change.originalTime || "未打卡"} → ${change.proposedTime}`}</p></div>
-      {canReview ? <div className="approval-actions"><button disabled={loading} onClick={() => onReview(change.id, false)}>拒绝</button><button className="approve" disabled={loading} onClick={() => onReview(change.id, true)}>同意</button></div> : <span className="waiting-pill">等待对方</span>}
+      <span className="approval-icon">↻</span>
+      <div><strong>{requester?.name ?? "对方"} · {formatDate(change.date)}</strong><p>{change.originalTime || "未打卡"} → {change.proposedTime}</p></div>
+      {canReview ? <div className="approval-actions"><button disabled={loading} onClick={() => onReview(change.id, false)}>拒绝</button><button className="approve" disabled={loading} onClick={() => onReview(change.id, true)}>同意</button></div> : <button className="cancel-pill" disabled={loading} onClick={() => onCancel?.(change.id)}>撤回</button>}
     </div>
   );
 }
 
-function EditSheet({ editor, loading, onClose, onSave, onDelete, onExempt }: { editor: { date: string; time: string; hasRecord: boolean }; loading: boolean; onClose: () => void; onSave: (date: string, time: string) => void; onDelete: (date: string) => void; onExempt: (date: string) => void }) {
+function EditSheet({ editor, loading, onClose, onSave, onExempt }: { editor: { date: string; time: string; hasRecord: boolean }; loading: boolean; onClose: () => void; onSave: (date: string, time: string) => void; onExempt: (date: string) => void }) {
   const [hour, setHour] = useState(editor.time.slice(0, 2));
   const [minute, setMinute] = useState(editor.time.slice(3, 5));
   const hours = [...Array.from({ length: 6 }, (_, index) => index + 18), ...Array.from({ length: 18 }, (_, index) => index)];
@@ -576,7 +578,6 @@ function EditSheet({ editor, loading, onClose, onSave, onDelete, onExempt }: { e
         </div>
         <p className="approval-note">提交后会通知对方，对方同意后才会更新记录和本周分数。</p>
         <button className="primary wide" disabled={loading} onClick={() => onSave(editor.date, `${hour}:${minute}`)}>提交给对方确认</button>
-        {editor.hasRecord && <button className="sheet-delete" disabled={loading} onClick={() => onDelete(editor.date)}>申请删除这条记录</button>}
         <button className="sheet-exempt" disabled={loading} onClick={() => onExempt(editor.date)}>申请本日特殊情况豁免</button>
         <small className="exemption-note">每人每月最多 2 次，需对方确认；通过后本日记为有效记录，但为 0 分、0 罚金且不计入平均入睡时间。</small>
       </section>
@@ -737,8 +738,8 @@ function SettingsView({ family, backendURL, joinCode, loading, onSave, onComplet
     onSave(draft);
   }
 
-  if (owner && section === "score") {
-    return <div className="page-stack"><SettingsBack eyebrow="OWNER ONLY" title="本周计分规则" onBack={() => setSection("root")} /><section className="card rules-card"><p className="muted">保存后立即用新规则重算本周；已归档周报不会改变。</p><div className="two-fields"><label>理想入睡<input type="time" step="300" value={draft.idealTime} onChange={(event) => { if (event.target.value) setDraft({ ...draft, idealTime: nearestFiveMinutes(event.target.value) }); }} /></label><label>凌晨归属截止<input type="number" min="0" max="11" value={draft.cutoffHour} onChange={(event) => setDraft({ ...draft, cutoffHour: Number(event.target.value) })} /></label></div><TierEditor title="工作日（周日—周四晚）" tiers={draft.weekdayTiers} disabled={false} onChange={(index, key, value) => updateTier("weekdayTiers", index, key, value)} /><TierEditor title="周末（周五、周六晚）" tiers={draft.weekendTiers} disabled={false} onChange={(index, key, value) => updateTier("weekendTiers", index, key, value)} />{draftError && <div className="inline-error">{draftError}</div>}<button className="primary wide" disabled={loading} onClick={saveSettings}>保存并重算本周</button></section></div>;
+  if (section === "score") {
+    return <div className="page-stack"><SettingsBack eyebrow={owner ? "OWNER SETTINGS" : "CURRENT RULES"} title="本周积分规则" onBack={() => setSection("root")} /><section className={`card rules-card ${owner ? "" : "readonly"}`}><p className="muted">{owner ? "保存后立即用新规则重算本周；已归档周报不会改变。" : "以下是家庭创建者设置的本周具体规则，仅创建者可以修改。"}</p><div className="two-fields"><label>理想入睡<input type="time" step="300" disabled={!owner} value={draft.idealTime} onChange={(event) => { if (event.target.value) setDraft({ ...draft, idealTime: nearestFiveMinutes(event.target.value) }); }} /></label><label>凌晨归属截止<input type="number" min="0" max="11" disabled={!owner} value={draft.cutoffHour} onChange={(event) => setDraft({ ...draft, cutoffHour: Number(event.target.value) })} /></label></div><TierEditor title="工作日（周日—周四晚）" tiers={draft.weekdayTiers} disabled={!owner} onChange={(index, key, value) => updateTier("weekdayTiers", index, key, value)} /><TierEditor title="周末（周五、周六晚）" tiers={draft.weekendTiers} disabled={!owner} onChange={(index, key, value) => updateTier("weekendTiers", index, key, value)} />{owner && draftError && <div className="inline-error">{draftError}</div>}{owner && <button className="primary wide" disabled={loading} onClick={saveSettings}>保存并重算本周</button>}</section></div>;
   }
 
   if (section === "reward") {
@@ -758,7 +759,7 @@ function SettingsView({ family, backendURL, joinCode, loading, onSave, onComplet
   }
 
   const review = family.rewardReview;
-  return <div className="page-stack"><section className="card info-card"><span className="eyebrow">FAMILY</span><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">30-DAY REVIEW</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => setSection("review")}>查看数据 ›</button></section><section className="card settings-menu"><span className="eyebrow">RULES & GUIDE</span><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p><button onClick={() => setSection("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => setSection("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><span className="eyebrow">DATA</span><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => setSection("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><span className="eyebrow">OWNER SETTINGS</span><h2>创建者设置</h2><p className="muted">修改计分档位只影响当前活动周。</p><button onClick={() => setSection("score")}><span className="settings-entry-icon">⌁</span><span><b>计分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<button className="exit-button" onClick={onExit}>退出此家庭（仅清除本机凭证）</button></div>;
+  return <div className="page-stack"><section className="card info-card"><span className="eyebrow">FAMILY</span><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">30-DAY REVIEW</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => setSection("review")}>查看数据 ›</button></section><section className="card settings-menu"><span className="eyebrow">RULES & GUIDE</span><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p>{!owner && <button onClick={() => setSection("score")}><span className="settings-entry-icon">⌁</span><span><b>积分规则</b><small>查看本周理想时间、积分与罚金档位</small></span><em>›</em></button>}<button onClick={() => setSection("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => setSection("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><span className="eyebrow">DATA</span><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => setSection("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><span className="eyebrow">OWNER SETTINGS</span><h2>创建者设置</h2><p className="muted">修改积分档位只影响当前活动周。</p><button onClick={() => setSection("score")}><span className="settings-entry-icon">⌁</span><span><b>编辑积分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<button className="exit-button" onClick={onExit}>退出此家庭（仅清除本机凭证）</button></div>;
 }
 
 function DataBackupView({ family, owner, loading, onExport, onRestore, onBack }: { family: Family; owner: boolean; loading: boolean; onExport: () => Promise<void>; onRestore: (backup: FamilyBackup) => void; onBack: () => void }) {
@@ -937,6 +938,14 @@ function dateInTimezone(timezone: string, value: Date) {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function currentNightDate(timezone: string, cutoffHour: number) {
+  const now = new Date();
+  const date = dateInTimezone(timezone, now);
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const hour = Number(parts.find((item) => item.type === "hour")?.value ?? "0");
+  return hour < cutoffHour ? addDateDays(date, -1) : date;
 }
 
 function addDateDays(date: string, offset: number) {

@@ -1,3 +1,3 @@
-236eac35915793650dbda16cdf0d123ae82def0a1b67a408c92747e44dc8de52  android/early-sleep-family-release.apk
-993d9f8bd1a38686f6b96141b296f818ae705fe3449c06155d5e55db3355fc2e  server/early-sleep-server-linux-amd64
-1f8b251013dbf1afe7a802060b84204dfc9b219db68b48bb7823f404fc777044  server/early-sleep-server-linux-arm64
+ccf0fef127fd9b51ba8bec27e54b5e118ee1b176959e921ac60dbc55838ce2f9  dist/android/early-sleep-family-release.apk
+890cdb59446b73a1f6b419b9d54e340134335b2dd9e7902e9586acbbde80d491  dist/server/early-sleep-server-linux-amd64
+636bbd41a63c5dad584b475c4a0d59aa67443f4f0b35d3290fce117717e8000e  dist/server/early-sleep-server-linux-arm64

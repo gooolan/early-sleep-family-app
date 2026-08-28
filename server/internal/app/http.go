@@ -37,12 +37,13 @@ func NewHTTPHandler(service *Service, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("PATCH /api/v1/family/settings", server.updateSettings)
 	mux.HandleFunc("PUT /api/v1/checkins/now", server.checkInNow)
 	mux.HandleFunc("PUT /api/v1/checkins/{date}", server.upsertCheckin)
-	mux.HandleFunc("DELETE /api/v1/checkins/{date}", server.deleteCheckin)
 	mux.HandleFunc("POST /api/v1/checkin-changes/{id}/approve", server.approveCheckinChange)
 	mux.HandleFunc("POST /api/v1/checkin-changes/{id}/reject", server.rejectCheckinChange)
+	mux.HandleFunc("POST /api/v1/checkin-changes/{id}/cancel", server.cancelCheckinChange)
 	mux.HandleFunc("POST /api/v1/exemptions", server.requestExemption)
 	mux.HandleFunc("POST /api/v1/exemption-changes/{id}/approve", server.approveExemptionChange)
 	mux.HandleFunc("POST /api/v1/exemption-changes/{id}/reject", server.rejectExemptionChange)
+	mux.HandleFunc("POST /api/v1/exemption-changes/{id}/cancel", server.cancelExemptionChange)
 	mux.HandleFunc("POST /api/v1/reward-review/complete", server.completeRewardReview)
 	return server.middleware(mux)
 }
@@ -51,7 +52,7 @@ func (server *HTTPServer) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Access-Control-Allow-Origin", "*")
 		writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if request.Method == http.MethodOptions {
 			writer.WriteHeader(http.StatusNoContent)
@@ -203,15 +204,6 @@ func (server *HTTPServer) upsertCheckin(writer http.ResponseWriter, request *htt
 	writeData(writer, http.StatusOK, family)
 }
 
-func (server *HTTPServer) deleteCheckin(writer http.ResponseWriter, request *http.Request) {
-	family, err := server.service.DeleteCheckin(request.Context(), bearerToken(request), request.PathValue("date"))
-	if err != nil {
-		server.handleError(writer, request, err)
-		return
-	}
-	writeData(writer, http.StatusOK, family)
-}
-
 func (server *HTTPServer) approveCheckinChange(writer http.ResponseWriter, request *http.Request) {
 	family, err := server.service.ReviewCheckinChange(request.Context(), bearerToken(request), request.PathValue("id"), true)
 	if err != nil {
@@ -223,6 +215,15 @@ func (server *HTTPServer) approveCheckinChange(writer http.ResponseWriter, reque
 
 func (server *HTTPServer) rejectCheckinChange(writer http.ResponseWriter, request *http.Request) {
 	family, err := server.service.ReviewCheckinChange(request.Context(), bearerToken(request), request.PathValue("id"), false)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, family)
+}
+
+func (server *HTTPServer) cancelCheckinChange(writer http.ResponseWriter, request *http.Request) {
+	family, err := server.service.CancelCheckinChange(request.Context(), bearerToken(request), request.PathValue("id"))
 	if err != nil {
 		server.handleError(writer, request, err)
 		return
@@ -262,6 +263,15 @@ func (server *HTTPServer) rejectExemptionChange(writer http.ResponseWriter, requ
 	writeData(writer, http.StatusOK, family)
 }
 
+func (server *HTTPServer) cancelExemptionChange(writer http.ResponseWriter, request *http.Request) {
+	family, err := server.service.CancelExemptionChange(request.Context(), bearerToken(request), request.PathValue("id"))
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, family)
+}
+
 func (server *HTTPServer) completeRewardReview(writer http.ResponseWriter, request *http.Request) {
 	family, err := server.service.CompleteRewardReview(request.Context(), bearerToken(request))
 	if err != nil {
@@ -289,6 +299,10 @@ func (server *HTTPServer) handleError(writer http.ResponseWriter, request *http.
 		status, code, message = http.StatusConflict, "archived_week", "只能修改当前周的记录"
 	case errors.Is(err, ErrSelfApproval):
 		status, code, message = http.StatusConflict, "self_approval", "不能确认自己发起的修改，请等待对方处理"
+	case errors.Is(err, ErrNotRequester):
+		status, code, message = http.StatusConflict, "not_requester", "只有申请发起人可以撤回"
+	case errors.Is(err, ErrFutureDate):
+		status, code, message = http.StatusConflict, "future_date", "日期尚未到达，不能补卡或申请豁免"
 	case errors.Is(err, ErrExemptionLimit):
 		status, code, message = http.StatusConflict, "exemption_limit", "每人每月最多使用 2 次特殊情况豁免"
 	case errors.Is(err, ErrExemptDay):

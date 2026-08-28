@@ -38,10 +38,7 @@ type Checkin struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-const (
-	CheckinChangeUpsert = "upsert"
-	CheckinChangeDelete = "delete"
-)
+const CheckinChangeUpsert = "upsert"
 
 type CheckinChange struct {
 	ID           string    `json:"id"`

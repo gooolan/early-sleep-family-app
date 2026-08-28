@@ -155,25 +155,25 @@ Content-Type: application/json
 {"time":"23:10","source":"backfill"}
 ```
 
-只能写活动周。双人家庭中该接口生成待确认变更，原记录与分数保持不变；单人家庭直接生效。完整家庭视图中的 `pendingChanges` 会返回待确认项。
-
-### `DELETE /api/v1/checkins/{YYYY-MM-DD}`
-
-双人家庭中生成删除待确认项；单人家庭直接删除。对方同意前原记录保持有效。
+只能写活动周中已经到达的睡觉日期。双人家庭中该接口生成待确认变更，原记录与分数保持不变；单人家庭直接生效。完整家庭视图中的 `pendingChanges` 会返回待确认项。
 
 ### `POST /api/v1/checkin-changes/{id}/approve`
 
-由非发起成员确认待处理的补卡、修改或删除。确认后变更写入活动周并重新计分。发起人不能确认自己的申请。
+由非发起成员确认待处理的补卡或修改。确认后变更写入活动周并重新计分。发起人不能确认自己的申请。
 
 ### `POST /api/v1/checkin-changes/{id}/reject`
 
 由非发起成员拒绝待处理变更。拒绝后移除申请，原记录和本周分数不变。
 
+### `POST /api/v1/checkin-changes/{id}/cancel`
+
+由申请发起人撤回尚未确认的补卡或修改，原记录和本周分数不变。
+
 ## 特殊情况豁免
 
 ### `POST /api/v1/exemptions`
 
-为当前成员申请活动周内某一天的特殊情况豁免：
+为当前成员申请活动周内已经到达的某一天的特殊情况豁免：
 
 ```json
 {"date":"2026-08-26"}
@@ -188,6 +188,10 @@ Content-Type: application/json
 ### `POST /api/v1/exemption-changes/{id}/reject`
 
 由非发起成员拒绝豁免申请，不改变当天原有记录。
+
+### `POST /api/v1/exemption-changes/{id}/cancel`
+
+由申请发起人撤回尚未确认的豁免申请，并立即释放该申请预占的当月额度。
 
 ## 规则复盘
 
@@ -208,5 +212,7 @@ Content-Type: application/json
 | 409 | `family_full` | 家庭已有两名成员 |
 | 409 | `archived_week` | 试图修改非活动周 |
 | 409 | `self_approval` | 发起人试图确认自己的修改 |
+| 409 | `not_requester` | 非申请发起人试图撤回申请 |
+| 409 | `future_date` | 试图补卡或豁免尚未到达的睡觉日期 |
 | 409 | `exemption_limit` | 当前成员本自然月已经用满 2 次豁免 |
 | 409 | `exempt_day` | 已通过豁免的日期不能再修改普通打卡 |

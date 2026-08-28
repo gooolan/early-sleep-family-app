@@ -10,6 +10,8 @@ import (
 )
 
 var ErrSelfApproval = errors.New("a member cannot review their own checkin change")
+var ErrNotRequester = errors.New("only the requester can cancel a change")
+var ErrFutureDate = errors.New("future sleep date cannot be changed")
 
 type Service struct {
 	store *Store
@@ -325,6 +327,10 @@ func (service *Service) UpsertCheckin(ctx context.Context, token string, date st
 	if err != nil {
 		return FamilyView{}, err
 	}
+	err = service.validateReachedDate(family, date)
+	if err != nil {
+		return FamilyView{}, err
+	}
 	return service.upsertCheckin(ctx, family, member, date, request)
 }
 
@@ -394,55 +400,6 @@ func (service *Service) upsertCheckin(ctx context.Context, family Family, member
 	return service.buildFamilyView(family, member.ID)
 }
 
-func (service *Service) DeleteCheckin(ctx context.Context, token string, date string) (FamilyView, error) {
-	family, member, err := service.authenticate(ctx, token)
-	if err != nil {
-		return FamilyView{}, err
-	}
-	changeID, err := randomID("chg_", 7)
-	if err != nil {
-		return FamilyView{}, err
-	}
-
-	family, err = service.store.Update(ctx, family.ID, func(current *Family) error {
-		if date < current.ActiveWeek.WeekStart || date > current.ActiveWeek.WeekEnd {
-			return ErrArchivedWeek
-		}
-		if _, exists := current.ActiveWeek.Exemptions[date][member.ID]; exists {
-			return ErrExemptDay
-		}
-		checkins := current.ActiveWeek.Checkins[date]
-		original, exists := checkins[member.ID]
-		if !exists {
-			return fmt.Errorf("%w: checkin does not exist", ErrInvalidInput)
-		}
-		if len(current.Members) >= 2 {
-			current.Pending = removePendingChange(current.Pending, member.ID, date)
-			current.Pending = append(current.Pending, CheckinChange{
-				ID:           changeID,
-				WeekStart:    current.ActiveWeek.WeekStart,
-				Date:         date,
-				MemberID:     member.ID,
-				RequestedBy:  member.ID,
-				Kind:         CheckinChangeDelete,
-				OriginalTime: original.Time,
-				CreatedAt:    service.now().UTC(),
-			})
-			return nil
-		}
-		delete(current.ActiveWeek.Checkins[date], member.ID)
-		if len(current.ActiveWeek.Checkins[date]) == 0 {
-			delete(current.ActiveWeek.Checkins, date)
-		}
-		current.Pending = removePendingChange(current.Pending, member.ID, date)
-		return nil
-	})
-	if err != nil {
-		return FamilyView{}, err
-	}
-	return service.buildFamilyView(family, member.ID)
-}
-
 func (service *Service) ReviewCheckinChange(ctx context.Context, token string, changeID string, approve bool) (FamilyView, error) {
 	changeID = strings.TrimSpace(changeID)
 	if changeID == "" {
@@ -473,24 +430,17 @@ func (service *Service) ReviewCheckinChange(ctx context.Context, token string, c
 			return ErrArchivedWeek
 		}
 
+		if change.Kind != CheckinChangeUpsert {
+			return fmt.Errorf("%w: unsupported checkin change", ErrInvalidInput)
+		}
 		if approve {
-			switch change.Kind {
-			case CheckinChangeUpsert:
-				if current.ActiveWeek.Checkins[change.Date] == nil {
-					current.ActiveWeek.Checkins[change.Date] = make(map[string]Checkin)
-				}
-				current.ActiveWeek.Checkins[change.Date][change.MemberID] = Checkin{
-					Time:      change.ProposedTime,
-					Source:    "approved_edit",
-					UpdatedAt: service.now().UTC(),
-				}
-			case CheckinChangeDelete:
-				delete(current.ActiveWeek.Checkins[change.Date], change.MemberID)
-				if len(current.ActiveWeek.Checkins[change.Date]) == 0 {
-					delete(current.ActiveWeek.Checkins, change.Date)
-				}
-			default:
-				return fmt.Errorf("%w: unsupported checkin change", ErrInvalidInput)
+			if current.ActiveWeek.Checkins[change.Date] == nil {
+				current.ActiveWeek.Checkins[change.Date] = make(map[string]Checkin)
+			}
+			current.ActiveWeek.Checkins[change.Date][change.MemberID] = Checkin{
+				Time:      change.ProposedTime,
+				Source:    "approved_edit",
+				UpdatedAt: service.now().UTC(),
 			}
 		}
 
@@ -504,6 +454,58 @@ func (service *Service) ReviewCheckinChange(ctx context.Context, token string, c
 		return FamilyView{}, err
 	}
 	return service.buildFamilyView(family, member.ID)
+}
+
+func (service *Service) CancelCheckinChange(ctx context.Context, token string, changeID string) (FamilyView, error) {
+	changeID = strings.TrimSpace(changeID)
+	if changeID == "" {
+		return FamilyView{}, fmt.Errorf("%w: change id is required", ErrInvalidInput)
+	}
+
+	family, member, err := service.authenticate(ctx, token)
+	if err != nil {
+		return FamilyView{}, err
+	}
+	family, err = service.store.Update(ctx, family.ID, func(current *Family) error {
+		index := -1
+		for candidateIndex, candidate := range current.Pending {
+			if candidate.ID == changeID {
+				index = candidateIndex
+				if candidate.RequestedBy != member.ID {
+					return ErrNotRequester
+				}
+				break
+			}
+		}
+		if index < 0 {
+			return ErrNotFound
+		}
+		current.Pending = append(current.Pending[:index], current.Pending[index+1:]...)
+		if current.Pending == nil {
+			current.Pending = make([]CheckinChange, 0)
+		}
+		return nil
+	})
+	if err != nil {
+		return FamilyView{}, err
+	}
+	return service.buildFamilyView(family, member.ID)
+}
+
+func (service *Service) validateReachedDate(family Family, date string) error {
+	_, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		return fmt.Errorf("%w: invalid date", ErrInvalidInput)
+	}
+	location, err := time.LoadLocation(family.Timezone)
+	if err != nil {
+		return err
+	}
+	reachedDate := NightDate(service.now().In(location), family.ActiveWeek.Settings)
+	if date > reachedDate {
+		return ErrFutureDate
+	}
+	return nil
 }
 
 func removePendingChange(changes []CheckinChange, memberID string, date string) []CheckinChange {

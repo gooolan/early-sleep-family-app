@@ -280,6 +280,22 @@ func TestManualCheckinRequiresPartnerApproval(t *testing.T) {
 	}
 
 	changeID := view.Pending[0].ID
+	_, err = service.CancelCheckinChange(context.Background(), partner.Token, changeID)
+	if !errors.Is(err, ErrNotRequester) {
+		t.Fatalf("partner cancel error = %v, want ErrNotRequester", err)
+	}
+	view, err = service.CancelCheckinChange(context.Background(), owner.Token, changeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Pending) != 0 {
+		t.Fatalf("pending count after cancellation = %d, want 0", len(view.Pending))
+	}
+	view, err = service.UpsertCheckin(context.Background(), owner.Token, "2026-08-26", CheckinRequest{Time: "23:20", Source: "backfill"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changeID = view.Pending[0].ID
 	_, err = service.ReviewCheckinChange(context.Background(), owner.Token, changeID, true)
 	if !errors.Is(err, ErrSelfApproval) {
 		t.Fatalf("self review error = %v, want ErrSelfApproval", err)
@@ -314,19 +330,9 @@ func TestManualCheckinRequiresPartnerApproval(t *testing.T) {
 		t.Fatal("rejected change affected active week")
 	}
 
-	view, err = service.DeleteCheckin(context.Background(), owner.Token, "2026-08-26")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(view.Pending) != 1 || view.ActiveWeek.Summary.TotalCheckins != 1 {
-		t.Fatal("delete request changed the active week before approval")
-	}
-	view, err = service.ReviewCheckinChange(context.Background(), partner.Token, view.Pending[0].ID, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(view.Pending) != 0 || view.ActiveWeek.Summary.TotalCheckins != 0 {
-		t.Fatal("approved delete did not update the active week")
+	_, err = service.UpsertCheckin(context.Background(), owner.Token, "2026-08-27", CheckinRequest{Time: "23:00", Source: "backfill"})
+	if !errors.Is(err, ErrFutureDate) {
+		t.Fatalf("future checkin error = %v, want ErrFutureDate", err)
 	}
 }
 
@@ -360,6 +366,22 @@ func TestExemptionRequiresPartnerApprovalAndFreezesInArchive(t *testing.T) {
 		t.Fatal("pending exemption affected scores before approval")
 	}
 	changeID := view.PendingExemptions[0].ID
+	_, err = service.CancelExemptionChange(context.Background(), partner.Token, changeID)
+	if !errors.Is(err, ErrNotRequester) {
+		t.Fatalf("partner exemption cancel error = %v, want ErrNotRequester", err)
+	}
+	view, err = service.CancelExemptionChange(context.Background(), owner.Token, changeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.PendingExemptions) != 0 {
+		t.Fatalf("pending exemption count after cancellation = %d, want 0", len(view.PendingExemptions))
+	}
+	view, err = service.RequestExemption(context.Background(), owner.Token, ExemptionRequest{Date: "2026-08-24"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changeID = view.PendingExemptions[0].ID
 	_, err = service.ReviewExemptionChange(context.Background(), owner.Token, changeID, true)
 	if !errors.Is(err, ErrSelfApproval) {
 		t.Fatalf("self review error = %v, want ErrSelfApproval", err)
@@ -375,6 +397,10 @@ func TestExemptionRequiresPartnerApprovalAndFreezesInArchive(t *testing.T) {
 	_, err = service.UpsertCheckin(context.Background(), owner.Token, "2026-08-24", CheckinRequest{Time: "23:00", Source: "backfill"})
 	if !errors.Is(err, ErrExemptDay) {
 		t.Fatalf("exempt-day edit error = %v, want ErrExemptDay", err)
+	}
+	_, err = service.RequestExemption(context.Background(), owner.Token, ExemptionRequest{Date: "2026-08-27"})
+	if !errors.Is(err, ErrFutureDate) {
+		t.Fatalf("future exemption error = %v, want ErrFutureDate", err)
 	}
 
 	view, err = service.RequestExemption(context.Background(), owner.Token, ExemptionRequest{Date: "2026-08-25"})

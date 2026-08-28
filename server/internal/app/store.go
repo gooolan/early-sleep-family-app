@@ -261,6 +261,13 @@ func normalizeFamily(family Family) Family {
 	if family.Pending == nil {
 		family.Pending = make([]CheckinChange, 0)
 	}
+	pending := make([]CheckinChange, 0, len(family.Pending))
+	for _, change := range family.Pending {
+		if change.Kind == CheckinChangeUpsert {
+			pending = append(pending, change)
+		}
+	}
+	family.Pending = pending
 	if family.PendingExemptions == nil {
 		family.PendingExemptions = make([]ExemptionChange, 0)
 	}

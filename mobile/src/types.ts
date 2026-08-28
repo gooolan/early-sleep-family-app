@@ -15,7 +15,7 @@ export type PendingChange = {
   date: string;
   memberId: string;
   requestedBy: string;
-  kind: "upsert" | "delete";
+  kind: "upsert";
   originalTime?: string;
   proposedTime?: string;
   createdAt: string;

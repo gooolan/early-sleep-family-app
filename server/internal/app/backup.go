@@ -224,10 +224,6 @@ func validatePendingBackup(changes []CheckinChange, exemptions []ExemptionChange
 			if err != nil {
 				return fmt.Errorf("%w: pending checkin time is invalid", ErrInvalidBackup)
 			}
-		case CheckinChangeDelete:
-			if change.OriginalTime == "" {
-				return fmt.Errorf("%w: pending deletion has no original time", ErrInvalidBackup)
-			}
 		default:
 			return fmt.Errorf("%w: pending checkin kind is invalid", ErrInvalidBackup)
 		}

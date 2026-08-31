@@ -58,6 +58,16 @@ h3 { margin-bottom: 12px; }
 .toast.success { background: #3b7966; }
 .toast.error, .form-error { background: #a84742; }
 .toast button { float: right; border: 0; color: white; background: transparent; }
+.live-update-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: #18352d99; backdrop-filter: blur(10px); }
+.live-update-dialog { display: grid; justify-items: center; width: min(100%, 360px); border: 1px solid #e5ddd4; border-radius: 26px; padding: 28px 24px 24px; text-align: center; background: #fffdf9; box-shadow: 0 28px 80px #14282055; }
+.live-update-mark { display: grid; place-items: center; width: 58px; height: 58px; margin-bottom: 16px; border-radius: 19px; color: white; background: linear-gradient(145deg, #5f9b87, #7db49f); box-shadow: 0 12px 26px #477c6a36; font-size: 28px; font-weight: 800; }
+.live-update-mark.failed { background: linear-gradient(145deg, #bc6656, #dd8a70); }
+.live-update-dialog h2 { margin: 7px 0 8px; color: #29463d; font-size: 22px; }
+.live-update-dialog p { margin: 0; color: #7a8781; font-size: 12px; line-height: 1.7; }
+.live-update-progress { width: 100%; height: 6px; margin-top: 21px; overflow: hidden; border-radius: 99px; background: #e7edea; }
+.live-update-progress i { display: block; width: 42%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #67a28e, #db9476); animation: loading 1.15s infinite ease-in-out; }
+.live-update-actions { display: grid; width: 100%; gap: 9px; margin-top: 22px; }
+.live-update-actions button { width: 100%; min-height: 44px; border-radius: 13px; font-weight: 800; }
 .setup-page { max-width: 520px; min-height: 100vh; margin: auto; padding: calc(45px + env(safe-area-inset-top)) 22px 34px; text-align: center; }
 .startup-page { display: grid; align-content: center; justify-items: center; width: min(100%, 520px); min-height: 100vh; margin: auto; padding: calc(30px + env(safe-area-inset-top)) 28px calc(30px + env(safe-area-inset-bottom)); text-align: center; }
 .startup-page > h1 { margin: 8px 0 25px; font-size: 38px; }

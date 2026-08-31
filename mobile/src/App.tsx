@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { APIClient, APIError } from "./api";
 import { PriceView } from "./PriceView";
 import type { Archive, DayResult, Family, FamilyBackup, Member, PendingChange, PendingExemption, RuleTier, Settings, WeekSummary } from "./types";
+import { requestLiveUpdateCheck } from "./updater";
 
 type Tab = "home" | "records" | "prices" | "archives" | "settings";
 type SettingsSection = "root" | "profile" | "score" | "reward" | "levels" | "review" | "backup";
@@ -194,6 +195,7 @@ export default function App() {
     setJoinCode(nextJoinCode);
     acceptFamily(nextFamily);
     setError("");
+    void requestLiveUpdateCheck();
   }
 
   function clearSession() {

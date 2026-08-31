@@ -76,4 +76,12 @@ func TestPhoneIdentityHTTPFlow(t *testing.T) {
 	if sessionEnvelope.Data.Token == "" || sessionEnvelope.Data.Family.CurrentMember.Phone != "+8613800138006" {
 		t.Fatalf("session = %+v", sessionEnvelope.Data)
 	}
+
+	request = httptest.NewRequest("PATCH", "/api/v1/members/me", bytes.NewBufferString(`{"name":"新称呼"}`))
+	request.Header.Set("Authorization", "Bearer "+sessionEnvelope.Data.Token)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != 200 || !bytes.Contains(response.Body.Bytes(), []byte(`"name":"新称呼"`)) {
+		t.Fatalf("profile status = %d, body = %s", response.Code, response.Body.String())
+	}
 }

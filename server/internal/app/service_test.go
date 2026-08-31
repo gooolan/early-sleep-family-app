@@ -46,7 +46,7 @@ func TestFamilyFlowRecalculatesCurrentWeekAndArchivesOnNextWeekWrite(t *testing.
 	}
 	memberSummary := view.ActiveWeek.Summary.Members[view.CurrentMember.ID]
 	if memberSummary.TotalScore != 9 {
-		t.Fatalf("recalculated score = %d, want 9", memberSummary.TotalScore)
+		t.Fatalf("recalculated score = %g, want 9", memberSummary.TotalScore)
 	}
 
 	current = time.Date(2026, 8, 31, 23, 0, 0, 0, location)
@@ -81,7 +81,7 @@ func TestGetFamilyAdvancesToCurrentWeek(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := time.Date(2026, 8, 30, 23, 0, 0, 0, location)
+	current := time.Date(2026, 8, 29, 23, 0, 0, 0, location)
 	service.now = func() time.Time { return current }
 
 	session, err := service.CreateFamily(context.Background(), CreateFamilyRequest{FamilyName: "自动新周", Nickname: "甲", Phone: "13800138901", Timezone: "Asia/Shanghai"})
@@ -93,15 +93,15 @@ func TestGetFamilyAdvancesToCurrentWeek(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	current = time.Date(2026, 8, 31, 9, 0, 0, 0, location)
+	current = time.Date(2026, 8, 30, 9, 0, 0, 0, location)
 	view, err := service.GetFamily(context.Background(), session.Token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.ActiveWeek.WeekStart != "2026-08-31" || view.ActiveWeek.WeekEnd != "2026-09-06" {
+	if view.ActiveWeek.WeekStart != "2026-08-30" || view.ActiveWeek.WeekEnd != "2026-09-05" {
 		t.Fatalf("active week = %s..%s", view.ActiveWeek.WeekStart, view.ActiveWeek.WeekEnd)
 	}
-	if len(view.Archives) != 1 || view.Archives[0].WeekStart != "2026-08-24" {
+	if len(view.Archives) != 1 || view.Archives[0].WeekStart != "2026-08-23" {
 		t.Fatalf("archives = %+v", view.Archives)
 	}
 }
@@ -136,11 +136,11 @@ func TestCurrentWeekCompletionUsesElapsedDaysAndArchiveUsesFullWeek(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.ActiveWeek.Summary.ExpectedCheckin != 3 || view.ActiveWeek.Summary.CompletionRate != 33 {
-		t.Fatalf("current completion = %+v, want 1/3", view.ActiveWeek.Summary)
+	if view.ActiveWeek.Summary.ExpectedCheckin != 4 || view.ActiveWeek.Summary.CompletionRate != 25 {
+		t.Fatalf("current completion = %+v, want 1/4", view.ActiveWeek.Summary)
 	}
 
-	current = time.Date(2026, 8, 31, 9, 0, 0, 0, location)
+	current = time.Date(2026, 8, 30, 9, 0, 0, 0, location)
 	view, err = service.GetFamily(context.Background(), session.Token)
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +311,7 @@ func TestManualCheckinRequiresPartnerApproval(t *testing.T) {
 		t.Fatalf("active day count = %d, want 1", len(view.ActiveWeek.Days))
 	}
 	result := view.ActiveWeek.Days[0].Members[owner.Family.CurrentMember.ID]
-	if result.Time != "23:20" || result.Score != 1 {
+	if result.Time != "23:20" || result.Score != 1.3 {
 		t.Fatalf("approved result = %+v", result)
 	}
 
@@ -527,5 +527,115 @@ func TestPhoneCanOnlyBelongToOneMember(t *testing.T) {
 	_, err = service.CreateFamily(context.Background(), CreateFamilyRequest{FamilyName: "家庭二", Nickname: "乙", Phone: "+8613800138005"})
 	if !errors.Is(err, ErrPhoneExists) {
 		t.Fatalf("duplicate phone error = %v, want ErrPhoneExists", err)
+	}
+}
+
+func TestLegacyMondayWeekMovesSundayArchiveIntoCurrentWeek(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store)
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := time.Date(2026, 8, 24, 22, 0, 0, 0, location)
+	service.now = func() time.Time { return current }
+	session, err := service.CreateFamily(context.Background(), CreateFamilyRequest{FamilyName: "周日起始", Nickname: "甲", Phone: "13800138015", Timezone: "Asia/Shanghai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	settings := DefaultSettings()
+	legacy := ActiveWeek{
+		WeekStart:         "2026-08-24",
+		WeekEnd:           "2026-08-30",
+		WeekCalendar:      LegacyWeekCalendar,
+		RewardRuleVersion: CurrentRewardRuleVersion,
+		Settings:          settings,
+		Checkins: map[string]map[string]Checkin{
+			"2026-08-24": {session.Family.CurrentMember.ID: {Time: "23:00", Source: "now", UpdatedAt: current.UTC()}},
+			"2026-08-30": {session.Family.CurrentMember.ID: {Time: "23:10", Source: "now", UpdatedAt: current.UTC()}},
+		},
+		Exemptions: make(map[string]map[string]Exemption),
+	}
+	legacyView, err := CalculateWeek(legacy, 1, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Update(context.Background(), session.Family.ID, func(family *Family) error {
+		family.Version = 6
+		family.ActiveWeek = ActiveWeek{
+			WeekStart:         "2026-08-31",
+			WeekEnd:           "2026-09-06",
+			WeekCalendar:      LegacyWeekCalendar,
+			RewardRuleVersion: CurrentRewardRuleVersion,
+			Settings:          settings,
+			Checkins:          make(map[string]map[string]Checkin),
+			Exemptions:        make(map[string]map[string]Exemption),
+		}
+		family.Archives = []WeeklyArchive{{
+			WeekStart:         legacyView.WeekStart,
+			WeekEnd:           legacyView.WeekEnd,
+			WeekCalendar:      LegacyWeekCalendar,
+			RewardRuleVersion: CurrentRewardRuleVersion,
+			ArchivedAt:        current.UTC(),
+			SettingsSnapshot:  settings,
+			DailySnapshot:     legacyView.Days,
+			Summary:           legacyView.Summary,
+		}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	current = time.Date(2026, 8, 31, 9, 0, 0, 0, location)
+	view, err := service.GetFamily(context.Background(), session.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.ActiveWeek.WeekStart != "2026-08-30" || view.ActiveWeek.WeekEnd != "2026-09-05" {
+		t.Fatalf("active week = %s..%s", view.ActiveWeek.WeekStart, view.ActiveWeek.WeekEnd)
+	}
+	if len(view.ActiveWeek.Days) != 1 || view.ActiveWeek.Days[0].Date != "2026-08-30" {
+		t.Fatalf("active days = %+v, want migrated Sunday", view.ActiveWeek.Days)
+	}
+	if len(view.Archives) != 1 || view.Archives[0].WeekStart != "2026-08-24" || view.Archives[0].WeekEnd != "2026-08-29" {
+		t.Fatalf("archives = %+v, want Monday through Saturday cutover", view.Archives)
+	}
+	if view.Archives[0].Summary.ExpectedCheckin != 6 || len(view.Archives[0].DailySnapshot) != 1 || view.Archives[0].DailySnapshot[0].Date != "2026-08-24" {
+		t.Fatalf("cutover archive = %+v", view.Archives[0])
+	}
+	stored, err := store.Get(context.Background(), session.Family.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Version != CurrentFamilyVersion || stored.ActiveWeek.WeekCalendar != CurrentWeekCalendar {
+		t.Fatalf("stored migration = version %d calendar %s", stored.Version, stored.ActiveWeek.WeekCalendar)
+	}
+}
+
+func TestMemberCanUpdateOwnProfile(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store)
+	session, err := service.CreateFamily(context.Background(), CreateFamilyRequest{FamilyName: "个人信息", Nickname: "旧称呼", Phone: "13800138016"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.UpdateMemberProfile(context.Background(), session.Token, UpdateMemberProfileRequest{Name: "  新称呼  "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.CurrentMember.Name != "新称呼" || view.Members[0].Name != "新称呼" {
+		t.Fatalf("updated profile = %+v", view.CurrentMember)
+	}
+	_, err = service.UpdateMemberProfile(context.Background(), session.Token, UpdateMemberProfileRequest{Name: "   "})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("empty name error = %v, want ErrInvalidInput", err)
 	}
 }

@@ -128,6 +128,12 @@ h3 { margin-bottom: 12px; }
 .info-card dt { color: #8a8e98; }
 .info-card dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
 .join-code { color: #d06752; font-weight: 700; letter-spacing: .12em; }
+.profile-edit { width: 100%; margin-top: 13px; border: 1px solid #dce9e3; border-radius: 13px; padding: 11px 13px; color: #4f776b; font-size: 11px; font-weight: 700; background: #f4faf7; }
+.profile-card { display: grid; justify-items: center; gap: 20px; padding-top: 28px; }
+.profile-avatar { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; color: white; font-family: Georgia, "Noto Serif CJK SC", serif; font-size: 30px; font-weight: 700; background: #68a28f; box-shadow: 0 12px 28px #4e8b7828; }
+.profile-form { display: grid; gap: 15px; width: 100%; }
+.profile-form > small { color: #879690; font-size: 9px; line-height: 1.65; }
+.readonly-field { color: #82908b; background: #f1f5f3; }
 .pill { padding: 5px 9px; border-radius: 99px; color: #996a59; font-size: 10px; background: #f4e8e1; }
 .tier-editor { margin: 22px 0; }
 .tier-editor h3 { font-size: 13px; }
@@ -149,7 +155,8 @@ h3 { margin-bottom: 12px; }
 .settings-entry-icon.level { color: #496f87; background: #dfedf5; }
 .settings-entry-icon.data { color: #596f86; background: #e4edf5; }
 .subpage-head { display: grid; grid-template-columns: 38px 1fr; align-items: center; gap: 11px; padding: 4px 3px 2px; }
-.subpage-head > button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #dce9e3; border-radius: 50%; padding: 0 2px 3px 0; color: #56796e; font-size: 27px; background: #fbfefc; }
+.subpage-head > button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #dce9e3; border-radius: 50%; padding: 0; color: #56796e; background: #fbfefc; }
+.subpage-head > button svg { display: block; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .rule-intro { margin-bottom: 20px; color: #657a73; font-size: 12px; line-height: 1.75; }
 .rule-intro b { color: #b86c49; }
 .reward-rule-section + .reward-rule-section { margin-top: 24px; }
@@ -208,8 +215,9 @@ h3 { margin-bottom: 12px; }
 .review-data-note { margin: -5px 4px 0; padding: 9px 11px; border-radius: 11px; color: #8b765c; font-size: 9px; line-height: 1.55; text-align: center; background: #fff5e8; }
 .backup-card { display: grid; gap: 14px; }
 .backup-block { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 12px; }
-.backup-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; color: #527565; font-size: 21px; background: #dfefe8; }
+.backup-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; color: #527565; background: #dfefe8; }
 .backup-icon.restore { color: #84684d; background: #f4e7d8; }
+.backup-icon svg { display: block; width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .backup-block h3 { margin: 0 0 5px; font-size: 13px; }
 .backup-block p { margin: 0; color: #81908a; font-size: 9px; line-height: 1.6; }
 .backup-block > button { padding: 10px 12px; font-size: 10px; }

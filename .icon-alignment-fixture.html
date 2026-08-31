@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>设置二级页 · 前端测试</title>
+  <style>
+    :root {
+      color: #294b43;
+      background: #eef2ef;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; }
+    button { color: inherit; font: inherit; cursor: pointer; }
+
+    .app-shell {
+      position: relative;
+      width: min(100%, 520px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 34px 24px 112px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 10% 12%, rgba(199, 238, 222, .82), transparent 34%),
+        radial-gradient(circle at 96% 8%, rgba(250, 218, 207, .76), transparent 34%),
+        linear-gradient(180deg, #fbf9f4 0%, #f1f8f4 57%, #f7f8f6 100%);
+      box-shadow: 0 0 40px rgba(56, 83, 74, .09);
+    }
+
+    .identity { display: flex; align-items: center; justify-content: space-between; margin-bottom: 42px; }
+    .identity small { display: block; margin-bottom: 10px; color: #75a596; font-size: 12px; font-weight: 700; letter-spacing: 3px; }
+    .identity h1 { margin: 0; font-family: Georgia, "Songti SC", serif; font-size: 35px; font-weight: 500; letter-spacing: -2px; }
+    .member { display: flex; align-items: center; gap: 11px; color: #a3655b; font-size: 12px; }
+    .member i { width: 8px; height: 8px; border-radius: 50%; background: #ce6b61; }
+    .avatar { display: grid; place-items: center; width: 56px; height: 56px; margin-left: 2px; border-radius: 50%; color: white; font-size: 20px; font-weight: 800; background: #70ad9d; box-shadow: 0 10px 24px rgba(71, 138, 121, .18); }
+
+    .page-stack { display: grid; gap: 20px; }
+    .eyebrow { color: #78a495; font-size: 11px; font-weight: 800; letter-spacing: 2.6px; }
+    h2, h3, p { margin-top: 0; }
+    h2 { margin-bottom: 0; font-family: Georgia, "Songti SC", serif; font-size: 26px; font-weight: 600; }
+
+    .subpage-head { display: grid; grid-template-columns: 38px 1fr; align-items: center; gap: 11px; padding: 4px 3px 2px; }
+    .subpage-head > button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #dce9e3; border-radius: 50%; padding: 0; color: #56796e; background: #fbfefc; box-shadow: 0 5px 16px rgba(65, 94, 83, .08); }
+    .subpage-head > button svg { display: block; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .subpage-head .eyebrow { display: block; margin-bottom: 7px; }
+
+    .card { border: 1px solid rgba(207, 225, 217, .86); border-radius: 28px; background: rgba(255, 255, 255, .82); box-shadow: 0 14px 35px rgba(73, 104, 91, .07); backdrop-filter: blur(12px); }
+    .backup-card { display: grid; gap: 16px; padding: 28px 26px; }
+    .backup-block { display: grid; grid-template-columns: 52px 1fr; align-items: start; gap: 17px; }
+    .backup-block h3 { margin: 0 0 7px; font-size: 17px; }
+    .backup-block p { margin: 0; color: #81908a; font-size: 12px; line-height: 1.7; }
+    .backup-icon { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 16px; color: #527565; background: #dfefe8; }
+    .backup-icon.restore { color: #84684d; background: #f4e7d8; }
+    .backup-icon svg { display: block; width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .backup-action { grid-column: 2; justify-self: start; margin-top: 2px; border: 0; border-radius: 17px; padding: 13px 18px; color: white; font-size: 12px; font-weight: 800; background: #dd7962; box-shadow: 0 9px 18px rgba(205, 102, 81, .19); }
+    .backup-action.secondary { border: 1px solid #d6e4de; color: #55786e; background: #f8fbf9; box-shadow: none; }
+    .backup-warning { padding: 14px 16px; border-radius: 15px; color: #8d674f; font-size: 11px; line-height: 1.65; background: #fff0e5; }
+    .family-note { color: #8c9994; font-size: 11px; }
+    .profile-card { display: grid; justify-items: center; gap: 22px; padding: 28px 26px; }
+    .profile-avatar { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; color: white; font-size: 30px; font-weight: 800; background: #70ad9d; box-shadow: 0 12px 28px rgba(71, 138, 121, .2); }
+    .profile-form { display: grid; gap: 14px; width: 100%; }
+    .profile-form label { display: grid; gap: 7px; color: #586f67; font-size: 12px; font-weight: 700; }
+    .profile-form input { width: 100%; border: 1px solid #d9e4df; border-radius: 13px; padding: 13px 14px; color: #294b43; font: inherit; background: #fbfefc; }
+    .profile-form input[readonly] { color: #82908b; background: #f1f5f3; }
+    .profile-form small { color: #879690; font-size: 10px; line-height: 1.6; }
+    .profile-save { grid-column: auto; justify-self: stretch; }
+
+    .settings-title { margin-bottom: 4px; }
+    .settings-lead { margin: 0; color: #81908a; font-size: 12px; line-height: 1.7; }
+    .settings-card { padding: 24px; }
+    .settings-card .eyebrow { display: block; margin-bottom: 9px; }
+    .settings-card h2 { margin-bottom: 8px; font-size: 23px; }
+    .settings-entry { display: grid; grid-template-columns: 44px 1fr 16px; align-items: center; gap: 13px; width: 100%; margin-top: 18px; border: 0; padding: 12px 0 0; text-align: left; background: transparent; border-top: 1px solid #edf2ef; }
+    .settings-entry-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; color: #596f86; background: #e4edf5; }
+    .settings-entry-icon svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .settings-entry b { display: block; margin-bottom: 4px; font-size: 14px; }
+    .settings-entry small { color: #8d9a95; font-size: 10px; }
+    .settings-entry em { color: #89a098; font-size: 21px; font-style: normal; }
+
+    .test-note { display: flex; gap: 9px; align-items: flex-start; padding: 12px 14px; border-radius: 15px; color: #5d766d; font-size: 11px; line-height: 1.55; background: rgba(232, 243, 238, .9); }
+    .test-note b { color: #d27760; }
+
+    .bottom-nav { position: absolute; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); height: 82px; border-top: 1px solid #e2e8e4; background: rgba(255, 255, 255, .92); backdrop-filter: blur(18px); }
+    .bottom-nav button { display: grid; place-content: center; gap: 4px; border: 0; color: #8d9793; font-size: 10px; background: transparent; }
+    .bottom-nav b { font-size: 23px; font-weight: 400; line-height: 1; }
+    .bottom-nav .active { color: #cf705d; }
+
+    [hidden] { display: none !important; }
+    button:focus-visible { outline: 3px solid rgba(100, 166, 146, .35); outline-offset: 3px; }
+
+    @media (max-width: 380px) {
+      .app-shell { padding-right: 17px; padding-left: 17px; }
+      .backup-card { padding: 23px 20px; }
+      .backup-block { grid-template-columns: 46px 1fr; gap: 13px; }
+      .backup-icon { width: 44px; height: 44px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="identity">
+      <div><small>2026-08-30 — 2026-09-05</small><h1>坨坨和掰掰</h1></div>
+      <div class="member"><i></i><span>离线</span><span class="avatar">坨</span></div>
+    </header>
+
+    <main id="settings-root" class="page-stack" hidden>
+      <div>
+        <span class="eyebrow">SETTINGS</span>
+        <h2 class="settings-title">设置</h2>
+        <p class="settings-lead">这是测试页的设置首页。进入二级页后，可以使用页面返回按钮或浏览器返回。</p>
+      </div>
+
+      <section class="card settings-card">
+        <span class="eyebrow">PROFILE</span>
+        <h2>个人信息</h2>
+        <p class="settings-lead">修改自己的称呼；手机号继续作为只读身份 ID。</p>
+        <button id="open-profile" class="settings-entry">
+          <span class="settings-entry-icon" aria-hidden="true">坨</span>
+          <span><b>修改个人信息</b><small>称呼与头像首字</small></span>
+          <em>›</em>
+        </button>
+      </section>
+
+      <section class="card settings-card">
+        <span class="eyebrow">DATA</span>
+        <h2>数据管理</h2>
+        <p class="settings-lead">导出完整家庭备份；只有创建者可以恢复。</p>
+        <button id="open-backup" class="settings-entry">
+          <span class="settings-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 20h14" /></svg></span>
+          <span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span>
+          <em>›</em>
+        </button>
+      </section>
+
+      <div class="test-note"><b>返回测试通过</b><span>从二级页返回后会停留在这里，不会离开测试页面。</span></div>
+    </main>
+
+    <main id="profile-page" class="page-stack" hidden>
+      <div class="subpage-head">
+        <button id="back-from-profile" aria-label="返回设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <div><span class="eyebrow">MY PROFILE</span><h2>个人信息</h2></div>
+      </div>
+      <section class="card profile-card">
+        <div id="profile-avatar" class="profile-avatar">坨</div>
+        <form id="profile-form" class="profile-form">
+          <label>称呼<input id="profile-name" maxlength="20" value="坨坨" /></label>
+          <label>手机号 ID<input value="+8613800138000" readonly /></label>
+          <small>手机号用于恢复身份，当前不可直接修改；头像会跟随称呼首字更新。</small>
+          <button class="backup-action profile-save" type="submit">保存个人信息</button>
+        </form>
+      </section>
+    </main>
+
+    <main id="backup-page" class="page-stack">
+      <div class="subpage-head">
+        <button id="back-to-settings" aria-label="返回设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <div><span class="eyebrow">DATA BACKUP</span><h2>导出与恢复</h2></div>
+      </div>
+
+      <div class="test-note"><b>测试方法</b><span>先检查三个 SVG 图标是否居中；再点击左上角返回，或使用浏览器返回键。</span></div>
+
+      <section class="card backup-card">
+        <div class="backup-block">
+          <span class="backup-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 20h14" /></svg></span>
+          <div><h3>导出家庭备份</h3><p>包含计分规则、打卡、豁免、周报和复盘周期，不包含可直接登录的成员令牌。</p></div>
+          <button class="backup-action" type="button">导出 JSON</button>
+        </div>
+        <div class="backup-warning">备份包含手机号和家庭记录，请存放在可信位置，不要发送给无关人员。</div>
+      </section>
+
+      <section class="card backup-card">
+        <div class="backup-block">
+          <span class="backup-icon restore" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0 0V3m0 5h5" /></svg></span>
+          <div><h3>从备份恢复</h3><p>仅支持恢复同一个家庭、相同成员组成的备份；当前登录凭证会保留。</p></div>
+          <button class="backup-action secondary" type="button">选择备份文件</button>
+        </div>
+        <small class="family-note">当前家庭：坨坨和掰掰 · fam_preview</small>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <button><b>☾</b><span>今天</span></button>
+      <button><b>✓</b><span>记录</span></button>
+      <button><b>▥</b><span>周报</span></button>
+      <button class="active"><b>⚙</b><span>设置</span></button>
+    </nav>
+  </div>
+
+  <script>
+    const root = document.querySelector("#settings-root");
+    const backup = document.querySelector("#backup-page");
+    const profile = document.querySelector("#profile-page");
+
+    function render(section) {
+      const showingBackup = section === "backup";
+      const showingProfile = section === "profile";
+      root.hidden = showingBackup || showingProfile;
+      backup.hidden = !showingBackup;
+      profile.hidden = !showingProfile;
+      document.title = showingBackup ? "导出与恢复 · 前端测试" : showingProfile ? "个人信息 · 前端测试" : "设置 · 前端测试";
+    }
+
+    history.replaceState({ section: "root" }, "", "#settings");
+    history.pushState({ section: "backup" }, "", "#backup");
+    render("backup");
+
+    document.querySelector("#back-to-settings").addEventListener("click", () => history.back());
+    document.querySelector("#back-from-profile").addEventListener("click", () => history.back());
+    document.querySelector("#open-profile").addEventListener("click", () => {
+      history.pushState({ section: "profile" }, "", "#profile");
+      render("profile");
+    });
+    document.querySelector("#open-backup").addEventListener("click", () => {
+      history.pushState({ section: "backup" }, "", "#backup");
+      render("backup");
+    });
+    document.querySelector("#profile-name").addEventListener("input", (event) => {
+      document.querySelector("#profile-avatar").textContent = event.target.value.trim().slice(0, 1) || "坨";
+    });
+    document.querySelector("#profile-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = document.querySelector("#profile-name").value.trim();
+      if (!name) return;
+      document.querySelector(".avatar").textContent = name.slice(0, 1);
+      history.back();
+    });
+    window.addEventListener("popstate", (event) => render(event.state?.section ?? "root"));
+  </script>
+</body>
+</html>

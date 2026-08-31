@@ -13,4 +13,5 @@ mobile/android/signing/
 server/data/*.json
 server/data/*.bak
 server/data/*.tmp
+.deploy-runtime/
 *.log

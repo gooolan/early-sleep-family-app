@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -150,7 +151,7 @@ func timeToNightMinutes(value string) (int, error) {
 	return hour*60 + minute, nil
 }
 
-func ScoreFor(date string, sleepTime string, settings Settings, location *time.Location) (int, int, error) {
+func ScoreFor(date string, sleepTime string, settings Settings, location *time.Location) (float64, int, error) {
 	parsedDate, err := time.ParseInLocation(time.DateOnly, date, location)
 	if err != nil {
 		return 0, 0, fmt.Errorf("%w: invalid date", ErrInvalidInput)
@@ -166,7 +167,9 @@ func ScoreFor(date string, sleepTime string, settings Settings, location *time.L
 		tiers = settings.WeekendTier
 	}
 
-	for _, tier := range tiers {
+	previousEnd := 0
+	previousScore := float64(0)
+	for index, tier := range tiers {
 		if tier.End == "" {
 			return tier.Score, tier.Fine, nil
 		}
@@ -176,11 +179,22 @@ func ScoreFor(date string, sleepTime string, settings Settings, location *time.L
 			return 0, 0, err
 		}
 		if minutes <= end {
-			return tier.Score, tier.Fine, nil
+			if index == 0 {
+				return tier.Score, tier.Fine, nil
+			}
+			progress := float64(minutes-previousEnd) / float64(end-previousEnd)
+			score := previousScore + (tier.Score-previousScore)*progress
+			return roundScore(score), tier.Fine, nil
 		}
+		previousEnd = end
+		previousScore = tier.Score
 	}
 
 	return 0, 0, errors.New("no matching rule tier")
+}
+
+func roundScore(score float64) float64 {
+	return math.Round(score*10) / 10
 }
 
 func NightDate(now time.Time, settings Settings) string {
@@ -198,6 +212,18 @@ func WeekRange(date string, location *time.Location) (string, string, error) {
 	}
 
 	weekday := int(parsed.Weekday())
+	start := parsed.AddDate(0, 0, -weekday)
+	end := start.AddDate(0, 0, 6)
+	return start.Format(time.DateOnly), end.Format(time.DateOnly), nil
+}
+
+func legacyWeekRange(date string, location *time.Location) (string, string, error) {
+	parsed, err := time.ParseInLocation(time.DateOnly, date, location)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: invalid date", ErrInvalidInput)
+	}
+
+	weekday := int(parsed.Weekday())
 	if weekday == 0 {
 		weekday = 7
 	}
@@ -207,6 +233,10 @@ func WeekRange(date string, location *time.Location) (string, string, error) {
 }
 
 func CalculateWeek(active ActiveWeek, memberCount int, location *time.Location) (ActiveWeekView, error) {
+	weekDays, err := daysBetween(active.WeekStart, active.WeekEnd, location)
+	if err != nil {
+		return ActiveWeekView{}, err
+	}
 	dateSet := make(map[string]struct{}, len(active.Checkins)+len(active.Exemptions))
 	for date := range active.Checkins {
 		dateSet[date] = struct{}{}
@@ -223,7 +253,7 @@ func CalculateWeek(active ActiveWeek, memberCount int, location *time.Location) 
 	days := make([]DailyResult, 0, len(dates))
 	summary := WeekSummary{
 		Members:         make(map[string]MemberSummary),
-		ExpectedCheckin: memberCount * 7,
+		ExpectedCheckin: memberCount * weekDays,
 	}
 	timeTotals := make(map[string]int)
 	timeCounts := make(map[string]int)
@@ -262,7 +292,7 @@ func CalculateWeek(active ActiveWeek, memberCount int, location *time.Location) 
 			}
 
 			memberSummary := summary.Members[memberID]
-			memberSummary.TotalScore += score
+			memberSummary.TotalScore = roundScore(memberSummary.TotalScore + score)
 			memberSummary.TotalFine += fine
 			memberSummary.CheckinDays++
 			summary.Members[memberID] = memberSummary
@@ -294,6 +324,7 @@ func CalculateWeek(active ActiveWeek, memberCount int, location *time.Location) 
 	return ActiveWeekView{
 		WeekStart:         active.WeekStart,
 		WeekEnd:           active.WeekEnd,
+		WeekCalendar:      active.WeekCalendar,
 		RewardRuleVersion: active.RewardRuleVersion,
 		Settings:          active.Settings,
 		Days:              days,

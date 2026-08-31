@@ -17,7 +17,7 @@ func TestScoreForWeekdayAndWeekend(t *testing.T) {
 		t.Fatal(err)
 	}
 	if weekdayScore != 3 || weekdayFine != 0 {
-		t.Fatalf("weekday result = (%d, %d), want (3, 0)", weekdayScore, weekdayFine)
+		t.Fatalf("weekday result = (%g, %d), want (3, 0)", weekdayScore, weekdayFine)
 	}
 
 	weekendScore, weekendFine, err := ScoreFor("2026-08-28", "22:30", settings, location)
@@ -25,7 +25,78 @@ func TestScoreForWeekdayAndWeekend(t *testing.T) {
 		t.Fatal(err)
 	}
 	if weekendScore != 5 || weekendFine != 0 {
-		t.Fatalf("weekend result = (%d, %d), want (5, 0)", weekendScore, weekendFine)
+		t.Fatalf("weekend result = (%g, %d), want (5, 0)", weekendScore, weekendFine)
+	}
+}
+
+func TestScoreForInterpolatesScoreButKeepsFineTiered(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+
+	score, fine, err := ScoreFor("2026-08-24", "23:05", settings, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if score != 1.8 || fine != 0 {
+		t.Fatalf("23:05 result = (%g, %d), want (1.8, 0)", score, fine)
+	}
+
+	score, fine, err = ScoreFor("2026-08-24", "00:05", settings, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if score != -0.2 || fine != 20 {
+		t.Fatalf("00:05 result = (%g, %d), want (-0.2, 20)", score, fine)
+	}
+}
+
+func TestScoreForUsesMoreLateTierImmediatelyAfterLastBoundary(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.WeekdayTier[6] = RuleTier{End: "01:30", Score: -2, Fine: 100}
+	settings.WeekdayTier[7] = RuleTier{End: "", Score: -3, Fine: 200}
+
+	score, fine, err := ScoreFor("2026-08-24", "01:30", settings, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if score != -2 || fine != 100 {
+		t.Fatalf("01:30 result = (%g, %d), want (-2, 100)", score, fine)
+	}
+
+	score, fine, err = ScoreFor("2026-08-24", "01:31", settings, location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if score != -3 || fine != 200 {
+		t.Fatalf("01:31 result = (%g, %d), want (-3, 200)", score, fine)
+	}
+}
+
+func TestNormalizeFamilyUpgradesActiveRewardRulesOnly(t *testing.T) {
+	family := Family{
+		ActiveWeek: ActiveWeek{
+			RewardRuleVersion: LegacyRewardRuleVersion,
+			Settings:          DefaultSettings(),
+		},
+		Archives: []WeeklyArchive{{
+			RewardRuleVersion: "",
+			SettingsSnapshot:  DefaultSettings(),
+		}},
+	}
+
+	normalized := normalizeFamily(family)
+	if normalized.ActiveWeek.RewardRuleVersion != CurrentRewardRuleVersion {
+		t.Fatalf("active reward version = %s, want %s", normalized.ActiveWeek.RewardRuleVersion, CurrentRewardRuleVersion)
+	}
+	if normalized.Archives[0].RewardRuleVersion != LegacyRewardRuleVersion {
+		t.Fatalf("archive reward version = %s, want %s", normalized.Archives[0].RewardRuleVersion, LegacyRewardRuleVersion)
 	}
 }
 
@@ -47,7 +118,7 @@ func TestSettingsAllowNegativeScoreAndFine(t *testing.T) {
 		t.Fatal(err)
 	}
 	if score != -6 || fine != -20 {
-		t.Fatalf("result = (%d, %d), want (-6, -20)", score, fine)
+		t.Fatalf("result = (%g, %d), want (-6, -20)", score, fine)
 	}
 }
 
@@ -63,12 +134,26 @@ func TestNightDateUsesCutoff(t *testing.T) {
 	}
 }
 
-func TestWeekRangeStartsOnMonday(t *testing.T) {
+func TestWeekRangeStartsOnSunday(t *testing.T) {
 	location, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		t.Fatal(err)
 	}
 	start, end, err := WeekRange("2026-08-30", location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if start != "2026-08-30" || end != "2026-09-05" {
+		t.Fatalf("range = %s..%s, want 2026-08-30..2026-09-05", start, end)
+	}
+}
+
+func TestLegacyWeekRangeStartsOnMonday(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, end, err := legacyWeekRange("2026-08-30", location)
 	if err != nil {
 		t.Fatal(err)
 	}

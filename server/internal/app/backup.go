@@ -63,7 +63,11 @@ func (service *Service) RestoreFamily(ctx context.Context, token string, backup 
 		}
 		candidate.Revision = current.Revision
 		candidate.JoinCodeHash = hashValue(strings.ToLower(candidate.JoinCode))
-		err := service.ensureActiveWeek(&candidate, nightDate)
+		err := service.migrateWeekCalendar(&candidate, nightDate, location)
+		if err != nil {
+			return fmt.Errorf("%w: week calendar cannot be restored", ErrInvalidBackup)
+		}
+		err = service.ensureActiveWeek(&candidate, nightDate)
 		if err != nil {
 			return fmt.Errorf("%w: active week cannot be restored", ErrInvalidBackup)
 		}
@@ -101,7 +105,7 @@ func validateFamilyBackup(formatVersion int, current Family, candidate Family) e
 			return fmt.Errorf("%w: member set does not match", ErrInvalidBackup)
 		}
 	}
-	err = validateBackupWeek(candidate.ActiveWeek.WeekStart, candidate.ActiveWeek.WeekEnd, candidate.ActiveWeek.Settings, candidate.Timezone)
+	err = validateBackupWeek(candidate.ActiveWeek.WeekStart, candidate.ActiveWeek.WeekEnd, candidate.ActiveWeek.WeekCalendar, candidate.ActiveWeek.Settings, candidate.Timezone)
 	if err != nil {
 		return err
 	}
@@ -110,7 +114,7 @@ func validateFamilyBackup(formatVersion int, current Family, candidate Family) e
 		return err
 	}
 	for _, archive := range candidate.Archives {
-		err = validateBackupWeek(archive.WeekStart, archive.WeekEnd, archive.SettingsSnapshot, candidate.Timezone)
+		err = validateBackupWeek(archive.WeekStart, archive.WeekEnd, archive.WeekCalendar, archive.SettingsSnapshot, candidate.Timezone)
 		if err != nil {
 			return err
 		}
@@ -255,7 +259,7 @@ func validateBackupDate(date string, weekStart string, weekEnd string, location 
 	return nil
 }
 
-func validateBackupWeek(weekStart string, weekEnd string, settings Settings, timezone string) error {
+func validateBackupWeek(weekStart string, weekEnd string, calendar string, settings Settings, timezone string) error {
 	err := ValidateSettings(settings)
 	if err != nil {
 		return fmt.Errorf("%w: invalid settings", ErrInvalidBackup)
@@ -264,7 +268,21 @@ func validateBackupWeek(weekStart string, weekEnd string, settings Settings, tim
 	if err != nil {
 		return fmt.Errorf("%w: invalid timezone", ErrInvalidBackup)
 	}
-	expectedStart, expectedEnd, err := WeekRange(weekStart, location)
+	var expectedStart string
+	var expectedEnd string
+	switch calendar {
+	case CurrentWeekCalendar:
+		expectedStart, expectedEnd, err = WeekRange(weekStart, location)
+	case LegacyWeekCalendar:
+		expectedStart, expectedEnd, err = legacyWeekRange(weekStart, location)
+	case CutoverWeekCalendar:
+		expectedStart, expectedEnd, err = legacyWeekRange(weekStart, location)
+		if err == nil {
+			expectedEnd, err = addDate(expectedEnd, -1, location)
+		}
+	default:
+		return fmt.Errorf("%w: invalid week calendar", ErrInvalidBackup)
+	}
 	if err != nil {
 		return fmt.Errorf("%w: invalid week", ErrInvalidBackup)
 	}

@@ -53,6 +53,13 @@ export class APIClient {
     return this.data<Family>("/api/v1/family");
   }
 
+  async saveProfile(name: string): Promise<Family> {
+    return this.data<Family>("/api/v1/members/me", {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+  }
+
   async exportFamily(): Promise<FamilyBackup> {
     return this.data<FamilyBackup>("/api/v1/family/export");
   }

@@ -35,6 +35,7 @@ func NewHTTPHandler(service *Service, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/v1/family/export", server.exportFamily)
 	mux.HandleFunc("POST /api/v1/family/restore", server.restoreFamily)
 	mux.HandleFunc("PATCH /api/v1/family/settings", server.updateSettings)
+	mux.HandleFunc("PATCH /api/v1/members/me", server.updateMemberProfile)
 	mux.HandleFunc("PUT /api/v1/checkins/now", server.checkInNow)
 	mux.HandleFunc("PUT /api/v1/checkins/{date}", server.upsertCheckin)
 	mux.HandleFunc("POST /api/v1/checkin-changes/{id}/approve", server.approveCheckinChange)
@@ -181,6 +182,20 @@ func (server *HTTPServer) updateSettings(writer http.ResponseWriter, request *ht
 	writeData(writer, http.StatusOK, family)
 }
 
+func (server *HTTPServer) updateMemberProfile(writer http.ResponseWriter, request *http.Request) {
+	var input UpdateMemberProfileRequest
+	err := decodeJSON(writer, request, &input)
+	if err != nil {
+		return
+	}
+	family, err := server.service.UpdateMemberProfile(request.Context(), bearerToken(request), input)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, family)
+}
+
 func (server *HTTPServer) checkInNow(writer http.ResponseWriter, request *http.Request) {
 	family, err := server.service.CheckInNow(request.Context(), bearerToken(request))
 	if err != nil {
@@ -310,7 +325,7 @@ func (server *HTTPServer) handleError(writer http.ResponseWriter, request *http.
 	case errors.Is(err, ErrInvalidBackup):
 		status, code, message = http.StatusBadRequest, "invalid_backup", "备份文件无效、家庭不匹配或版本不受支持"
 	case errors.Is(err, ErrInvalidInput):
-		status, code, message = http.StatusBadRequest, "invalid_input", "参数不符合要求，请检查时间与计分档位是否完整并按先后顺序排列"
+		status, code, message = http.StatusBadRequest, "invalid_input", "参数不符合要求，请检查填写内容、时间与计分档位"
 	default:
 		server.logger.ErrorContext(request.Context(), "request failed", "method", request.Method, "path", request.URL.Path, "error", err)
 	}

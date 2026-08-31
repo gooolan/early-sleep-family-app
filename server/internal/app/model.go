@@ -5,13 +5,18 @@ import "time"
 const (
 	RoleOwner                = "owner"
 	RoleMember               = "member"
-	CurrentRewardRuleVersion = "v3"
+	CurrentRewardRuleVersion = "v4"
+	LegacyRewardRuleVersion  = "v3"
+	LegacyWeekCalendar       = "monday-v1"
+	CurrentWeekCalendar      = "sunday-v2"
+	CutoverWeekCalendar      = "cutover-v2"
+	CurrentFamilyVersion     = 7
 )
 
 type RuleTier struct {
-	End   string `json:"end"`
-	Score int    `json:"score"`
-	Fine  int    `json:"fine"`
+	End   string  `json:"end"`
+	Score float64 `json:"score"`
+	Fine  int     `json:"fine"`
 }
 
 type Settings struct {
@@ -70,6 +75,7 @@ type ExemptionChange struct {
 type ActiveWeek struct {
 	WeekStart         string                          `json:"weekStart"`
 	WeekEnd           string                          `json:"weekEnd"`
+	WeekCalendar      string                          `json:"weekCalendar,omitempty"`
 	RewardRuleVersion string                          `json:"rewardRuleVersion"`
 	Settings          Settings                        `json:"settings"`
 	Checkins          map[string]map[string]Checkin   `json:"checkins"`
@@ -77,11 +83,11 @@ type ActiveWeek struct {
 }
 
 type DailyMemberResult struct {
-	Time   string `json:"time"`
-	Score  int    `json:"score"`
-	Fine   int    `json:"fine"`
-	Source string `json:"source"`
-	Exempt bool   `json:"exempt,omitempty"`
+	Time   string  `json:"time"`
+	Score  float64 `json:"score"`
+	Fine   int     `json:"fine"`
+	Source string  `json:"source"`
+	Exempt bool    `json:"exempt,omitempty"`
 }
 
 type RewardReviewStatus struct {
@@ -97,10 +103,10 @@ type DailyResult struct {
 }
 
 type MemberSummary struct {
-	TotalScore       int    `json:"totalScore"`
-	TotalFine        int    `json:"totalFine"`
-	CheckinDays      int    `json:"checkinDays"`
-	AverageSleepTime string `json:"averageSleepTime"`
+	TotalScore       float64 `json:"totalScore"`
+	TotalFine        int     `json:"totalFine"`
+	CheckinDays      int     `json:"checkinDays"`
+	AverageSleepTime string  `json:"averageSleepTime"`
 }
 
 type WeekSummary struct {
@@ -113,6 +119,7 @@ type WeekSummary struct {
 type WeeklyArchive struct {
 	WeekStart          string        `json:"weekStart"`
 	WeekEnd            string        `json:"weekEnd"`
+	WeekCalendar       string        `json:"weekCalendar,omitempty"`
 	RewardRuleVersion  string        `json:"rewardRuleVersion"`
 	ArchivedAt         time.Time     `json:"archivedAt"`
 	SettingsSnapshot   Settings      `json:"settingsSnapshot"`
@@ -148,6 +155,7 @@ type MemberView struct {
 type ActiveWeekView struct {
 	WeekStart         string        `json:"weekStart"`
 	WeekEnd           string        `json:"weekEnd"`
+	WeekCalendar      string        `json:"weekCalendar,omitempty"`
 	RewardRuleVersion string        `json:"rewardRuleVersion"`
 	Settings          Settings      `json:"settings"`
 	Days              []DailyResult `json:"days"`
@@ -193,6 +201,10 @@ type IdentityStatus struct {
 
 type SessionRequest struct {
 	Phone string `json:"phone"`
+}
+
+type UpdateMemberProfileRequest struct {
+	Name string `json:"name"`
 }
 
 type FamilySession struct {

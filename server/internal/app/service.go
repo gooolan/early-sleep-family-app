@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var ErrSelfApproval = errors.New("a member cannot review their own checkin change")
@@ -43,6 +44,10 @@ func (service *Service) Login(ctx context.Context, request SessionRequest) (Fami
 		return FamilySession{}, err
 	}
 	family, member, err := service.store.FindMemberByPhone(ctx, phone)
+	if err != nil {
+		return FamilySession{}, err
+	}
+	family, err = service.ensureCurrentWeekCalendar(ctx, family)
 	if err != nil {
 		return FamilySession{}, err
 	}
@@ -140,7 +145,7 @@ func (service *Service) CreateFamily(ctx context.Context, request CreateFamilyRe
 	}
 
 	family := Family{
-		Version:      6,
+		Version:      CurrentFamilyVersion,
 		Revision:     1,
 		ID:           familyID,
 		Name:         request.FamilyName,
@@ -161,6 +166,7 @@ func (service *Service) CreateFamily(ctx context.Context, request CreateFamilyRe
 		ActiveWeek: ActiveWeek{
 			WeekStart:         weekStart,
 			WeekEnd:           weekEnd,
+			WeekCalendar:      CurrentWeekCalendar,
 			RewardRuleVersion: CurrentRewardRuleVersion,
 			Settings:          settings,
 			Checkins:          make(map[string]map[string]Checkin),
@@ -200,6 +206,10 @@ func (service *Service) JoinFamily(ctx context.Context, request JoinFamilyReques
 	}
 
 	family, err := service.store.FindByJoinCode(ctx, hashValue(request.JoinCode))
+	if err != nil {
+		return FamilySession{}, err
+	}
+	family, err = service.ensureCurrentWeekCalendar(ctx, family)
 	if err != nil {
 		return FamilySession{}, err
 	}
@@ -269,6 +279,31 @@ func (service *Service) GetFamily(ctx context.Context, token string) (FamilyView
 		if err != nil {
 			return FamilyView{}, err
 		}
+	}
+	return service.buildFamilyView(family, member.ID)
+}
+
+func (service *Service) UpdateMemberProfile(ctx context.Context, token string, request UpdateMemberProfileRequest) (FamilyView, error) {
+	name := strings.TrimSpace(request.Name)
+	if name == "" || utf8.RuneCountInString(name) > 20 {
+		return FamilyView{}, fmt.Errorf("%w: name must contain 1 to 20 characters", ErrInvalidInput)
+	}
+
+	family, member, err := service.authenticate(ctx, token)
+	if err != nil {
+		return FamilyView{}, err
+	}
+	family, err = service.store.Update(ctx, family.ID, func(current *Family) error {
+		currentMember, exists := current.Members[member.ID]
+		if !exists {
+			return ErrUnauthorized
+		}
+		currentMember.Name = name
+		current.Members[member.ID] = currentMember
+		return nil
+	})
+	if err != nil {
+		return FamilyView{}, err
 	}
 	return service.buildFamilyView(family, member.ID)
 }
@@ -528,6 +563,10 @@ func (service *Service) authenticate(ctx context.Context, token string) (Family,
 	if err != nil {
 		return Family{}, Member{}, ErrUnauthorized
 	}
+	family, err = service.ensureCurrentWeekCalendar(ctx, family)
+	if err != nil {
+		return Family{}, Member{}, err
+	}
 	member, exists := family.Members[memberID]
 	if !exists || !constantEqual(member.TokenHash, hashValue(secret)) {
 		return Family{}, Member{}, ErrUnauthorized
@@ -559,6 +598,7 @@ func (service *Service) ensureActiveWeek(family *Family, targetDate string) erro
 		family.Archives = append(family.Archives, WeeklyArchive{
 			WeekStart:          view.WeekStart,
 			WeekEnd:            view.WeekEnd,
+			WeekCalendar:       family.ActiveWeek.WeekCalendar,
 			RewardRuleVersion:  family.ActiveWeek.RewardRuleVersion,
 			ArchivedAt:         service.now().UTC(),
 			SettingsSnapshot:   view.Settings,
@@ -571,6 +611,7 @@ func (service *Service) ensureActiveWeek(family *Family, targetDate string) erro
 	family.ActiveWeek = ActiveWeek{
 		WeekStart:         targetStart,
 		WeekEnd:           targetEnd,
+		WeekCalendar:      CurrentWeekCalendar,
 		RewardRuleVersion: CurrentRewardRuleVersion,
 		Settings:          cloneSettings(family.ActiveWeek.Settings),
 		Checkins:          make(map[string]map[string]Checkin),

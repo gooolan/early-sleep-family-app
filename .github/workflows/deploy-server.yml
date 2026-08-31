@@ -1,0 +1,72 @@
+name: Deploy server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - dist/server/early-sleep-server-linux-arm64
+  workflow_dispatch:
+
+concurrency:
+  group: early-sleep-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Pull and restart API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    env:
+      DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+      DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+      DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT || '22' }}
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate SSH configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${DEPLOY_SSH_HOST}" && -n "${DEPLOY_SSH_USER}" ]] || {
+            echo "DEPLOY_SSH_HOST and DEPLOY_SSH_USER are required" >&2
+            exit 1
+          }
+          [[ -n "${DEPLOY_SSH_PRIVATE_KEY}" && -n "${DEPLOY_SSH_KNOWN_HOSTS}" ]] || {
+            echo "DEPLOY_SSH_PRIVATE_KEY and DEPLOY_SSH_KNOWN_HOSTS are required" >&2
+            exit 1
+          }
+          [[ "${DEPLOY_SSH_PORT}" =~ ^[0-9]+$ ]] || {
+            echo "DEPLOY_SSH_PORT must be numeric" >&2
+            exit 1
+          }
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d "${HOME}/.ssh"
+          printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > "${HOME}/.ssh/deploy_key"
+          chmod 600 "${HOME}/.ssh/deploy_key"
+          printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/known_hosts"
+
+      - name: Pull code and restart API
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i "${HOME}/.ssh/deploy_key" \
+            -p "${DEPLOY_SSH_PORT}" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o StrictHostKeyChecking=yes \
+            "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
+            'bash -s' < deploy/deploy-server.sh

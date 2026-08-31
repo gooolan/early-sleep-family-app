@@ -50,6 +50,7 @@ export type WeekSummary = {
 export type ActiveWeek = {
   weekStart: string;
   weekEnd: string;
+  weekCalendar?: string;
   rewardRuleVersion?: string;
   settings: Settings;
   days: DayResult[];
@@ -58,6 +59,7 @@ export type ActiveWeek = {
 export type Archive = {
   weekStart: string;
   weekEnd: string;
+  weekCalendar?: string;
   rewardRuleVersion?: string;
   archivedAt: string;
   settingsSnapshot: Settings;

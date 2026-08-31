@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -249,7 +250,7 @@ func (store *Store) readFamily(path string) (Family, error) {
 
 func normalizeFamily(family Family) Family {
 	family.ActiveWeek.Settings = NormalizeSettings(family.ActiveWeek.Settings)
-	if family.ActiveWeek.RewardRuleVersion == "" {
+	if family.ActiveWeek.RewardRuleVersion == "" || family.ActiveWeek.RewardRuleVersion == LegacyRewardRuleVersion {
 		family.ActiveWeek.RewardRuleVersion = CurrentRewardRuleVersion
 	}
 	if family.ActiveWeek.Checkins == nil {
@@ -257,6 +258,9 @@ func normalizeFamily(family Family) Family {
 	}
 	if family.ActiveWeek.Exemptions == nil {
 		family.ActiveWeek.Exemptions = make(map[string]map[string]Exemption)
+	}
+	if family.ActiveWeek.WeekCalendar == "" {
+		family.ActiveWeek.WeekCalendar = inferWeekCalendar(family.ActiveWeek.WeekStart, family.ActiveWeek.WeekEnd)
 	}
 	if family.Pending == nil {
 		family.Pending = make([]CheckinChange, 0)
@@ -281,11 +285,35 @@ func normalizeFamily(family Family) Family {
 		archive := &family.Archives[index]
 		archive.SettingsSnapshot = NormalizeSettings(archive.SettingsSnapshot)
 		if archive.RewardRuleVersion == "" {
-			archive.RewardRuleVersion = CurrentRewardRuleVersion
+			archive.RewardRuleVersion = LegacyRewardRuleVersion
+		}
+		if archive.WeekCalendar == "" {
+			archive.WeekCalendar = inferWeekCalendar(archive.WeekStart, archive.WeekEnd)
 		}
 	}
-	family.Version = 6
+	if family.Version < 6 {
+		family.Version = 6
+	}
 	return family
+}
+
+func inferWeekCalendar(weekStart string, weekEnd string) string {
+	start, err := time.Parse(time.DateOnly, weekStart)
+	if err != nil {
+		return LegacyWeekCalendar
+	}
+	end, err := time.Parse(time.DateOnly, weekEnd)
+	if err != nil {
+		return LegacyWeekCalendar
+	}
+	days := int(end.Sub(start).Hours()/24) + 1
+	if days < 7 {
+		return CutoverWeekCalendar
+	}
+	if start.Weekday() == time.Sunday {
+		return CurrentWeekCalendar
+	}
+	return LegacyWeekCalendar
 }
 
 func (store *Store) writeFamily(path string, family Family) error {

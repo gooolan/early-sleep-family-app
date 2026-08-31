@@ -17,10 +17,16 @@ import (
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	dataDirectory := envOrDefault("DATA_DIR", "./data")
+	updateDirectory := envOrDefault("UPDATE_DIR", "./updates")
 	listenAddress := envOrDefault("LISTEN_ADDR", ":8080")
 	dataDirectory, err := filepath.Abs(dataDirectory)
 	if err != nil {
 		logger.Error("resolve data directory", "error", err)
+		os.Exit(1)
+	}
+	updateDirectory, err = filepath.Abs(updateDirectory)
+	if err != nil {
+		logger.Error("resolve update directory", "error", err)
 		os.Exit(1)
 	}
 
@@ -30,19 +36,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := app.NewHTTPHandler(app.NewService(store), logger)
+	handler := app.NewHTTPHandler(app.NewService(store), logger, updateDirectory)
 	server := &http.Server{
 		Addr:              listenAddress,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
+		WriteTimeout:      5 * time.Minute,
 		IdleTimeout:       60 * time.Second,
 	}
 
 	serverError := make(chan error, 1)
 	go func() {
-		logger.Info("server started", "address", listenAddress, "dataDirectory", dataDirectory)
+		logger.Info("server started", "address", listenAddress, "dataDirectory", dataDirectory, "updateDirectory", updateDirectory)
 		serverError <- server.ListenAndServe()
 	}()
 

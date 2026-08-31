@@ -1,0 +1,11 @@
+{
+  "webVersion": "1.3.0",
+  "bundleUrl": "/updates/web/web-1.3.0.zip",
+  "sha256": "c80383b8ce34baa75a119b19ebbe2cf391ecfad44c792efaffc6bcf200e8e5c8",
+  "minimumNativeVersionCode": 6,
+  "androidVersionCode": 6,
+  "androidVersionName": "1.3.0",
+  "androidUrl": "/updates/android/early-sleep-1.3.0.apk",
+  "androidSha256": "0555436cd1d01b7a72616c7b4cfba7182b5e05d2de9af4ca250022a96516fec3",
+  "publishedAt": "2026-08-31T07:18:13Z"
+}

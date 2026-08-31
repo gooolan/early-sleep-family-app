@@ -9,6 +9,7 @@ Group=early-sleep
 WorkingDirectory=/opt/early-sleep
 Environment=LISTEN_ADDR=:8080
 Environment=DATA_DIR=/var/lib/early-sleep
+Environment=UPDATE_DIR=/opt/early-sleep/updates
 ExecStart=/opt/early-sleep/early-sleep-server-linux-amd64
 Restart=on-failure
 RestartSec=3

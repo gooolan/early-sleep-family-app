@@ -24,6 +24,14 @@ Content-Type: application/json
 
 返回 `{"message":"pong"}`。
 
+### `GET /updates/manifest.json`
+
+读取无需登录的 App 更新清单。文件来自服务端 `UPDATE_DIR/manifest.json`，响应不缓存；文件不存在时返回 `404`。
+
+### `GET /updates/{path...}`
+
+下载 `UPDATE_DIR` 下的版本化热更新 ZIP、APK、SHA-256 或签名文件。仅允许 `.json`、`.zip`、`.apk`、`.sha256` 和 `.sig` 类型，不提供目录列表。除 `manifest.json` 外，响应使用长期不可变缓存并支持 HTTP Range 请求。
+
 ### `GET /api/v1/default-settings`
 
 返回工作日和周末推荐计分配置。

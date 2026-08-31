@@ -1,4 +1,4 @@
-.PHONY: test server-linux mobile android-sync android-release checksums release
+.PHONY: test server-linux mobile android-sync android-release package-web-update package-updates checksums release
 
 test:
 	cd server && GOWORK=off go test ./...
@@ -19,7 +19,13 @@ android-release:
 	mkdir -p dist/android
 	cp mobile/android/app/build/outputs/apk/release/app-release.apk dist/android/early-sleep-family-release.apk
 
+package-updates: android-release
+	./deploy/package-updates.sh
+
+package-web-update: mobile
+	./deploy/package-updates.sh web-only
+
 checksums:
 	cd dist && shasum -a 256 android/early-sleep-family-release.apk server/early-sleep-server-linux-amd64 server/early-sleep-server-linux-arm64 > SHA256SUMS
 
-release: test server-linux android-release checksums
+release: test server-linux package-updates checksums

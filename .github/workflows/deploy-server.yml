@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - dist/server/early-sleep-server-linux-arm64
+      - updates/**
   workflow_dispatch:
 
 concurrency:

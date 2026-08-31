@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -14,7 +17,7 @@ func TestPing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewHTTPHandler(NewService(store), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := NewHTTPHandler(NewService(store), slog.New(slog.NewTextHandler(io.Discard, nil)), t.TempDir())
 	request := httptest.NewRequest("GET", "/ping", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -28,7 +31,7 @@ func TestPhoneIdentityHTTPFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewHTTPHandler(NewService(store), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := NewHTTPHandler(NewService(store), slog.New(slog.NewTextHandler(io.Discard, nil)), t.TempDir())
 
 	request := httptest.NewRequest("POST", "/api/v1/families", bytes.NewBufferString(`{"familyName":"HTTP 家庭","nickname":"甲","phone":"13800138006","timezone":"Asia/Shanghai"}`))
 	response := httptest.NewRecorder()
@@ -83,5 +86,88 @@ func TestPhoneIdentityHTTPFlow(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != 200 || !bytes.Contains(response.Body.Bytes(), []byte(`"name":"新称呼"`)) {
 		t.Fatalf("profile status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateFilesHTTP(t *testing.T) {
+	updateDirectory := t.TempDir()
+	err := os.MkdirAll(filepath.Join(updateDirectory, "web"), 0o755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.MkdirAll(filepath.Join(updateDirectory, "android"), 0o755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(updateDirectory, "manifest.json"), []byte(`{"webVersion":"1.2.4"}`), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(updateDirectory, "web", "web-1.2.4.zip"), []byte("bundle-content"), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(updateDirectory, "android", "early-sleep-1.3.0.apk"), []byte("apk-content"), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(updateDirectory, ".secret.json"), []byte(`{"secret":true}`), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHTTPHandler(NewService(store), slog.New(slog.NewTextHandler(io.Discard, nil)), updateDirectory)
+
+	request := httptest.NewRequest(http.MethodGet, "/updates/manifest.json", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("manifest status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/json; charset=utf-8" {
+		t.Fatalf("manifest content type = %q", contentType)
+	}
+	if cacheControl := response.Header().Get("Cache-Control"); cacheControl != "no-store" {
+		t.Fatalf("manifest cache control = %q", cacheControl)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/updates/web/web-1.2.4.zip", nil)
+	request.Header.Set("Range", "bytes=0-5")
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusPartialContent || response.Body.String() != "bundle" {
+		t.Fatalf("bundle status = %d, body = %q", response.Code, response.Body.String())
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/zip" {
+		t.Fatalf("bundle content type = %q", contentType)
+	}
+	if cacheControl := response.Header().Get("Cache-Control"); cacheControl != "public, max-age=31536000, immutable" {
+		t.Fatalf("bundle cache control = %q", cacheControl)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/updates/android/early-sleep-1.3.0.apk", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("APK status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/vnd.android.package-archive" {
+		t.Fatalf("APK content type = %q", contentType)
+	}
+	if disposition := response.Header().Get("Content-Disposition"); disposition != `attachment; filename="early-sleep-1.3.0.apk"` {
+		t.Fatalf("APK content disposition = %q", disposition)
+	}
+
+	for _, requestPath := range []string{"/updates/", "/updates/web/", "/updates/.secret.json", "/updates/readme.txt"} {
+		request = httptest.NewRequest(http.MethodGet, requestPath, nil)
+		response = httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("path %q status = %d, want 404", requestPath, response.Code)
+		}
 	}
 }

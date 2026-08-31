@@ -22,10 +22,11 @@ type apiError struct {
 	Message string `json:"message"`
 }
 
-func NewHTTPHandler(service *Service, logger *slog.Logger) http.Handler {
+func NewHTTPHandler(service *Service, logger *slog.Logger, updateDirectory string) http.Handler {
 	server := &HTTPServer{service: service, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ping", server.ping)
+	mux.Handle("GET /updates/", newUpdateFileHandler(updateDirectory))
 	mux.HandleFunc("GET /api/v1/default-settings", server.defaultSettings)
 	mux.HandleFunc("POST /api/v1/identity/check", server.identify)
 	mux.HandleFunc("POST /api/v1/sessions", server.login)
@@ -54,7 +55,6 @@ func (server *HTTPServer) middleware(next http.Handler) http.Handler {
 		writer.Header().Set("Access-Control-Allow-Origin", "*")
 		writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
-		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if request.Method == http.MethodOptions {
 			writer.WriteHeader(http.StatusNoContent)
 			return
@@ -366,6 +366,7 @@ func writeError(writer http.ResponseWriter, status int, code string, message str
 }
 
 func writeJSON(writer http.ResponseWriter, status int, value any) {
+	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	writer.WriteHeader(status)
 	err := json.NewEncoder(writer).Encode(value)
 	if err != nil {

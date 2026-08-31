@@ -46,7 +46,8 @@ early-sleep-family-app/
 
 ```bash
 chmod +x dist/server/early-sleep-server-linux-amd64
-DATA_DIR=./data LISTEN_ADDR=:8080 ./dist/server/early-sleep-server-linux-amd64
+mkdir -p updates/web updates/android
+DATA_DIR=./data UPDATE_DIR=./updates LISTEN_ADDR=:8080 ./dist/server/early-sleep-server-linux-amd64
 ```
 
 ARM64 服务器将文件名换为 `early-sleep-server-linux-arm64`。验证：
@@ -60,6 +61,8 @@ curl http://服务器地址:8080/ping
 ```json
 {"message":"pong"}
 ```
+
+`UPDATE_DIR` 是 App 热更新资源目录，默认值为当前工作目录下的 `updates/`。目录不存在或尚未发布 `manifest.json` 时，业务接口仍可正常运行，更新地址返回 404。
 
 ### GitHub Actions 自动发布后端
 
@@ -86,7 +89,7 @@ git push origin main
 
 ### 2. 安装安卓 App
 
-将 `dist/android/early-sleep-family-release.apk` 发送到安卓手机并允许“安装未知来源应用”。当前产物为 `1.2.2`（versionCode 5）正式 Release 包，已使用项目专用 RSA 4096 位证书签名。
+将 `dist/android/early-sleep-family-release.apk` 发送到安卓手机并允许“安装未知来源应用”。当前产物为 `1.3.0`（versionCode 6）正式 Release 包，已使用项目专用 RSA 4096 位证书签名，并内置自托管 Web 热更新客户端。
 
 如果手机上安装的是旧 debug 签名版本，需要先卸载旧 App 再安装 Release 包；Android 不允许不同签名直接覆盖安装。家庭数据保存在后端，重新输入相同服务器地址和手机号即可恢复身份与数据。
 
@@ -136,6 +139,51 @@ pnpm run android:release
 如果服务器有固定域名，可以复制 `mobile/.env.production.example` 为 `mobile/.env.production`，把 `VITE_API_BASE_URL` 改成实际地址再构建。APK 首次启动会预填该地址，同时仍允许用户修改。
 
 Android 原生构建还需要 JDK 21、Android SDK 36 和对应 Build Tools。
+
+## 热更新资源服务
+
+Go 后端直接通过 `/updates/` 对外提供更新资源，不需要额外安装 Nginx。当前自动部署脚本会创建 `/data/early-sleep-family-app/updates` 并将它传给 `UPDATE_DIR`；使用 systemd 示例时则配置为 `/opt/early-sleep/updates`。目录结构如下：
+
+```text
+/data/early-sleep-family-app/updates/
+├── manifest.json
+├── web/
+│   └── web-1.2.4.zip
+└── android/
+    └── early-sleep-1.3.0.apk
+```
+
+`manifest.json` 示例：
+
+```json
+{
+  "webVersion": "1.2.4",
+  "bundleUrl": "/updates/web/web-1.2.4.zip",
+  "sha256": "替换为 web-1.2.4.zip 的 SHA-256",
+  "minimumNativeVersionCode": 5,
+  "androidVersionCode": 6,
+  "androidVersionName": "1.3.0",
+  "androidUrl": "/updates/android/early-sleep-1.3.0.apk",
+  "androidSha256": "替换为 APK 的 SHA-256",
+  "publishedAt": "2026-08-31T12:00:00Z"
+}
+```
+
+手机访问的地址为 `http(s)://服务器地址/updates/manifest.json`。该文件响应使用 `Cache-Control: no-store`，确保每次检查都能看到最新版本；带版本号的 ZIP、APK、签名和校验文件则使用长期不可变缓存，并支持断点下载。服务允许单次响应最多持续 5 分钟，避免较慢网络下载 APK 时被普通 API 的短超时中断。
+
+每次发布先上传带版本号的 ZIP 或 APK，确认可以下载后再原子替换 `manifest.json`。服务只允许读取 `.json`、`.zip`、`.apk`、`.sha256` 和 `.sig` 文件，不提供目录列表，也不会暴露隐藏文件。更新检查和下载不要求登录。
+
+从 `1.3.0` 开始，Android App 启动时会从用户已经配置的后端读取更新清单。发现更高的 `webVersion` 后，会校验 SHA-256、后台下载并将新资源安排在 App 进入后台或下次启动时生效；新资源未能正常启动时由原生插件自动回退。
+
+只发布 React、TypeScript 或 CSS 热更新时，提高 `mobile/package.json` 的版本号后运行：
+
+```bash
+source ~/.nvm/nvm.sh
+nvm use 22.22.1
+make package-web-update
+```
+
+该命令只生成新的 Web ZIP 并更新清单，保留现有 APK 信息。涉及 Android 权限、Java、Capacitor 插件或其他原生改动时，同时提高 `mobile/android/app/build.gradle` 的 `versionCode` 和 `versionName`，再运行完整的 `make release`。发布脚本会同时生成签名 APK、Web ZIP 和清单。
 
 ## 数据与备份
 

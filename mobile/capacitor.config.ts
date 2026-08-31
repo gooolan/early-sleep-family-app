@@ -7,6 +7,16 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
   },
+  plugins: {
+    CapacitorUpdater: {
+      appReadyTimeout: 10_000,
+      autoDeleteFailed: true,
+      autoDeletePrevious: true,
+      autoUpdate: "off",
+      responseTimeout: 60,
+      statsUrl: "",
+    },
+  },
 };
 
 export default config;

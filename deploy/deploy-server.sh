@@ -5,6 +5,7 @@ set -euo pipefail
 repository_directory=/data/early-sleep-family-app
 binary_path=${repository_directory}/dist/server/early-sleep-server-linux-arm64
 data_directory=${repository_directory}/data
+update_directory=${repository_directory}/updates
 listen_address=:31080
 health_url=http://127.0.0.1:31080/ping
 runtime_directory=${repository_directory}/.deploy-runtime
@@ -12,7 +13,7 @@ pid_file=${runtime_directory}/early-sleep-server.pid
 last_good_binary=${runtime_directory}/early-sleep-server-linux-arm64.last-good
 
 cd "${repository_directory}"
-mkdir -p "${runtime_directory}"
+mkdir -p "${runtime_directory}" "${update_directory}/web" "${update_directory}/android"
 
 if [[ ! -x ${binary_path} ]]; then
   echo "current server binary is missing or not executable: ${binary_path}" >&2
@@ -89,6 +90,7 @@ start_server() {
   executable=$1
   nohup env \
     DATA_DIR="${data_directory}" \
+    UPDATE_DIR="${update_directory}" \
     LISTEN_ADDR="${listen_address}" \
     "${executable}" >/dev/null 2>&1 </dev/null &
   server_pid=$!

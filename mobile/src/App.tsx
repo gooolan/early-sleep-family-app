@@ -289,13 +289,13 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
+      {tab !== "prices" && <header className="topbar">
         <div>
           <span className="eyebrow">{family.activeWeek.weekStart} — {family.activeWeek.weekEnd}</span>
           <h1>{family.name}</h1>
         </div>
         <div className="topbar-profile"><SyncIndicator state={syncState} lastSyncedAt={lastSyncedAt} /><div className="avatar">{family.currentMember.name.slice(0, 1)}</div></div>
-      </header>
+      </header>}
 
       <main>
         {notice && <div className="toast success">{notice}</div>}

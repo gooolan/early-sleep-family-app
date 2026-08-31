@@ -8,7 +8,9 @@ import type { Family, NormalizedPriceUnit, PriceCatalog, PriceRecord, PriceStore
 
 type PriceScreen =
   | { name: "home" }
-  | { name: "record"; productId?: string; editId?: string; prefill?: Partial<PriceDraft> }
+  | { name: "products" }
+  | { name: "history" }
+  | { name: "record"; productId?: string; editId?: string; prefill?: Partial<PriceDraft>; returnTo?: "history" }
   | { name: "detail"; productId: string }
   | { name: "compare"; productId: string };
 
@@ -38,6 +40,10 @@ const unitOptions: Array<{ value: PriceUnit; label: string }> = [
 ];
 
 const presetStoreNames = ["永辉超市", "盒马", "条马鲜生", "菜市场", "路边摊", "新世纪超市"];
+const homeLatestLimit = 12;
+const historyPageSize = 20;
+const emptyPriceCatalog: PriceCatalog = { products: [], stores: [], records: [] };
+const priceCatalogCache = new WeakMap<APIClient, PriceCatalog>();
 
 const normalizedLabels: Record<NormalizedPriceUnit, string> = {
   jin: "斤",
@@ -64,19 +70,21 @@ function emptyDraft(productName = "", unit: PriceUnit = "jin"): PriceDraft {
 }
 
 export function PriceView({ client, family }: { client: APIClient; family: Family }) {
-  const [catalog, setCatalog] = useState<PriceCatalog | null>(null);
+  const [catalog, setCatalog] = useState<PriceCatalog | null>(() => priceCatalogCache.get(client) ?? null);
   const [screen, setScreen] = useState<PriceScreen>({ name: "home" });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !priceCatalogCache.has(client));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [recentProducts, setRecentProducts] = useState<string[]>([]);
   const [deletedRecordID, setDeletedRecordID] = useState("");
 
   useEffect(() => {
     let current = true;
-    setLoading(true);
+    const cached = priceCatalogCache.get(client);
+    setCatalog(cached ?? null);
+    setLoading(!cached);
+    setError("");
     client.prices().then((value) => {
-      if (current) setCatalog(value);
+      if (current) acceptCatalog(value);
     }).catch((reason) => {
       if (current) setError(messageOf(reason));
     }).finally(() => {
@@ -84,6 +92,11 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     });
     return () => { current = false; };
   }, [client]);
+
+  function acceptCatalog(next: PriceCatalog) {
+    priceCatalogCache.set(client, next);
+    setCatalog(next);
+  }
 
   function showNotice(message: string) {
     setNotice(message);
@@ -95,7 +108,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     setError("");
     try {
       const next = await action();
-      setCatalog(next);
+      acceptCatalog(next);
       if (success) showNotice(success);
       return next;
     } catch (reason) {
@@ -125,7 +138,6 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
   }
 
   function openProduct(productID: string) {
-    setRecentProducts((current) => [productID, ...current.filter((id) => id !== productID)].slice(0, 8));
     setScreen({ name: "detail", productId: productID });
   }
 
@@ -152,9 +164,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     }
   }
 
-  if (!catalog) {
-    return <div className="price-page"><PriceHeader title="记录菜价" /><div className="card price-empty">{loading ? "正在加载家庭菜价…" : error || "暂时没有菜价数据"}</div></div>;
-  }
+  const visibleCatalog = catalog ?? emptyPriceCatalog;
 
   return (
     <div className="price-page">
@@ -162,32 +172,49 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
       {error && <div className="inline-error price-error">{error}<button onClick={() => setError("")}>×</button></div>}
       {screen.name === "home" && (
         <PriceHome
-          catalog={catalog}
-          recentProducts={recentProducts}
+          catalog={visibleCatalog}
           loading={loading}
+          ready={Boolean(catalog)}
+          initialLoading={!catalog && loading}
           onOpen={openProduct}
+          onViewAll={() => setScreen({ name: "products" })}
+          onHistory={() => setScreen({ name: "history" })}
           onRecord={(productId) => setScreen({ name: "record", productId })}
           onAdd={async (name) => {
             const product = await ensureProduct(name);
             setScreen({ name: "record", productId: product.id });
           }}
+        />
+      )}
+      {screen.name === "products" && (
+        <PriceProducts catalog={visibleCatalog} onBack={() => setScreen({ name: "home" })} onOpen={openProduct} />
+      )}
+      {screen.name === "history" && (
+        <PriceHistory
+          catalog={visibleCatalog}
+          family={family}
+          loading={loading}
+          onBack={() => setScreen({ name: "home" })}
+          onOpen={openProduct}
+          onEdit={(record) => setScreen({ name: "record", productId: record.productId, editId: record.id, returnTo: "history" })}
+          onDelete={(recordID) => void removeRecord(recordID)}
           onQuality={async (recordID, quality) => {
             try {
-              return await perform(() => client.updatePriceQuality(recordID, quality), "品质已补充");
+              return await perform(() => client.updatePriceQuality(recordID, quality), quality ? "品质已更新" : "品质评分已清除");
             } catch {
-              return catalog;
+              return visibleCatalog;
             }
           }}
         />
       )}
       {screen.name === "record" && (
         <PriceEditor
-          catalog={catalog}
+          catalog={visibleCatalog}
           productId={screen.productId}
-          editRecord={screen.editId ? catalog.records.find((record) => record.id === screen.editId) : undefined}
+          editRecord={screen.editId ? visibleCatalog.records.find((record) => record.id === screen.editId) : undefined}
           prefill={screen.prefill}
           loading={loading}
-          onBack={() => screen.productId ? openProduct(screen.productId) : setScreen({ name: "home" })}
+          onBack={() => screen.returnTo === "history" ? setScreen({ name: "history" }) : screen.productId ? openProduct(screen.productId) : setScreen({ name: "home" })}
           ensureProduct={ensureProduct}
           ensureStore={ensureStore}
           onSave={async (input, editID) => {
@@ -198,12 +225,12 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
             return next;
           }}
           onUndo={(recordID) => perform(() => client.deletePriceRecord(recordID), "已撤销上一条保存")}
-          onDone={(productID) => openProduct(productID)}
+          onDone={(productID) => screen.returnTo === "history" ? setScreen({ name: "history" }) : openProduct(productID)}
         />
       )}
       {screen.name === "detail" && (
         <ProductDetail
-          catalog={catalog}
+          catalog={visibleCatalog}
           family={family}
           productId={screen.productId}
           loading={loading}
@@ -216,14 +243,14 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
             try {
               return await perform(() => client.updatePriceQuality(recordID, quality), quality ? "品质已更新" : "品质评分已清除");
             } catch {
-              return catalog;
+              return visibleCatalog;
             }
           }}
         />
       )}
       {screen.name === "compare" && (
         <ComparePrice
-          catalog={catalog}
+          catalog={visibleCatalog}
           productId={screen.productId}
           onBack={() => openProduct(screen.productId)}
           onRecord={(prefill) => setScreen({ name: "record", productId: screen.productId, prefill })}
@@ -236,23 +263,25 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
 
 function PriceHome(props: {
   catalog: PriceCatalog;
-  recentProducts: string[];
   loading: boolean;
+  ready: boolean;
+  initialLoading: boolean;
   onOpen: (id: string) => void;
+  onViewAll: () => void;
+  onHistory: () => void;
   onRecord: (id?: string) => void;
   onAdd: (name: string) => Promise<void>;
-  onQuality: (recordID: string, quality: number) => Promise<PriceCatalog>;
 }) {
   const { catalog } = props;
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
-  const common = commonProducts(catalog).slice(0, 8);
-  const recent = props.recentProducts.flatMap((id) => catalog.products.find((product) => product.id === id) ?? []).slice(0, 8);
   const visible = query.trim()
     ? catalog.products.filter((product) => product.name.includes(query.trim())).slice(0, 8)
-    : common.length > 0 ? common : recent;
+    : [];
   const exact = catalog.products.some((product) => sameName(product.name, query));
-  const recentRecords = [...catalog.records].sort((left, right) => right.purchasedAt.localeCompare(left.purchasedAt)).slice(0, 8);
+  const productsWithLatest = useMemo(() => productLatestEntries(catalog), [catalog]);
+  const homeProducts = productsWithLatest.slice(0, homeLatestLimit);
+  const recordedCount = productsWithLatest.filter((item) => item.record).length;
 
   async function addProduct() {
     if (!query.trim()) return;
@@ -268,20 +297,29 @@ function PriceHome(props: {
 
   return (
     <div className="price-stack">
-      <PriceHeader title="记录菜价" subtitle="家庭自己的价格记忆，买菜时随手查、顺手记。" />
+      <PriceHeader title="家庭菜价" subtitle="先看最新价格，完整记录与评级统一收在页面下方。" />
       <section className="price-search-card">
-        <div className="search-field"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索商品，例如番茄、猪里脊" /></div>
+        <div className="search-field"><span aria-hidden="true">⌕</span><input disabled={!props.ready} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.initialLoading ? "菜价加载中…" : "搜索商品，例如番茄、猪里脊"} /></div>
         {query.trim() && visible.length === 0 && !exact && <button className="price-add-result" disabled={adding} onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}
         {query.trim() && visible.length > 0 && <div className="price-search-results">{visible.map((product) => <ProductSearchRow key={product.id} product={product} catalog={catalog} onClick={() => props.onOpen(product.id)} />)}{!exact && <button onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}</div>}
       </section>
 
-      {!query.trim() && <section className="price-section"><div className="price-section-head"><div><span>QUICK PICKS</span><h2>{common.length ? "常用商品" : "最近查看"}</h2></div><small>近 30 天自动排序</small></div>{visible.length ? <div className="quick-grid">{visible.map((product) => <button key={product.id} onClick={() => props.onOpen(product.id)}><ProductIcon product={product} /><span>{product.name}</span></button>)}</div> : <div className="price-empty compact">保存第一条菜价后，常用商品会自动出现在这里。</div>}</section>}
+      <button className="record-price-main" disabled={props.loading || !props.ready} onClick={() => props.onRecord()}><span>＋</span><div><b>记录菜价</b><small>单价、总价都能快速录入</small></div></button>
 
-      <button className="record-price-main" disabled={props.loading} onClick={() => props.onRecord()}><span>＋</span><div><b>记录菜价</b><small>单价、总价都能快速录入</small></div></button>
+      {!query.trim() && <section className="price-section latest-price-section"><div className="price-section-head"><div><span>LATEST PRICES</span><h2>最新菜价</h2></div><small>{props.initialLoading ? "正在异步加载" : recordedCount ? `${recordedCount} 种已记录` : "等待第一条价格"}</small></div>{props.initialLoading ? <PriceListSkeleton /> : homeProducts.length ? <><div className="latest-product-list">{homeProducts.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => props.onOpen(product.id)} />)}</div>{productsWithLatest.length > homeLatestLimit && <button className="price-view-all" onClick={props.onViewAll}>查看全部 {productsWithLatest.length} 种菜价 <span aria-hidden="true">›</span></button>}</> : <div className="price-empty compact">还没有商品。点击“记录菜价”添加第一种菜。</div>}</section>}
 
-      {recentRecords.length > 0 && <section className="price-section"><div className="price-section-head"><div><span>RECENT PURCHASES</span><h2>最近记录</h2></div><small>最近 {recentRecords.length} 条</small></div><div className="recent-purchases">{recentRecords.map((record) => <RecentPurchase key={record.id} record={record} catalog={catalog} onQuality={props.onQuality} />)}</div></section>}
+      <button className="price-history-entry" disabled={!props.ready} onClick={props.onHistory}><span aria-hidden="true">≡</span><div><b>全部历史记录</b><small>{props.initialLoading ? "记录加载中…" : `${catalog.records.length} 条记录 · 可补评级、编辑和删除`}</small></div><em aria-hidden="true">›</em></button>
     </div>
   );
+}
+
+function PriceProducts({ catalog, onBack, onOpen }: { catalog: PriceCatalog; onBack: () => void; onOpen: (productID: string) => void }) {
+  const productsWithLatest = useMemo(() => productLatestEntries(catalog), [catalog]);
+  return <div className="price-stack"><SubpageHeader title="全部菜价" eyebrow="LATEST PRICES" onBack={onBack} /><section className="price-section latest-price-section"><div className="price-section-head"><div><span>PRODUCT LIST</span><h2>每种菜的最新价格</h2></div><small>共 {productsWithLatest.length} 种</small></div>{productsWithLatest.length ? <div className="latest-product-list">{productsWithLatest.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => onOpen(product.id)} />)}</div> : <div className="price-empty compact">还没有商品。</div>}</section></div>;
+}
+
+function PriceListSkeleton() {
+  return <div className="price-list-skeleton" aria-label="正在加载最新菜价">{Array.from({ length: 4 }, (_, index) => <div key={index}><i /><span><b /><small /></span><em /></div>)}</div>;
 }
 
 function ProductSearchRow({ product, catalog, onClick }: { product: Product; catalog: PriceCatalog; onClick: () => void }) {
@@ -289,10 +327,28 @@ function ProductSearchRow({ product, catalog, onClick }: { product: Product; cat
   return <button className="product-search-row" onClick={onClick}><ProductIcon product={product} /><span><b>{product.name}</b><small>{summary.storeCount} 家店 · {summary.latestAt ? relativeDate(summary.latestAt) : "还没有价格记录"}</small></span><strong>{summary.range}</strong></button>;
 }
 
-function RecentPurchase({ record, catalog, onQuality }: { record: PriceRecord; catalog: PriceCatalog; onQuality: (recordID: string, quality: number) => Promise<PriceCatalog> }) {
-  const product = catalog.products.find((item) => item.id === record.productId);
-  const store = catalog.stores.find((item) => item.id === record.storeId);
-  return <article><div className="recent-purchase-copy"><b>{product?.name ?? "未知商品"}</b><span>{store?.name ?? "未知店铺"} · {formatPurchaseDate(record.purchasedAt)}</span><small>{entryDescription(record)}</small></div><div className="recent-purchase-value"><strong>{formatMoney(record.normalizedPrice)} 元/{normalizedLabels[record.normalizedUnit]}</strong><span>品质（选填）</span><StarRating value={record.quality} onChange={(value) => void onQuality(record.id, value)} /></div></article>;
+function LatestProductPrice({ product, record, store, onClick }: { product: Product; record?: PriceRecord; store?: PriceStore; onClick: () => void }) {
+  return <button className="latest-product-row" onClick={onClick}><ProductIcon product={product} /><span className="latest-product-copy"><b>{product.name}</b><small>{record ? `${store?.name ?? "未知店铺"} · ${relativeDate(record.purchasedAt)}` : "还没有价格记录，点此去记录"}</small></span>{record ? <span className="latest-product-value"><strong>{formatMoney(record.normalizedPrice)}</strong><small>元/{normalizedLabels[record.normalizedUnit]}</small>{record.priceKind === "discount" && <em>优惠价</em>}</span> : <span className="latest-product-empty">待记录</span>}<span className="latest-product-arrow" aria-hidden="true">›</span></button>;
+}
+
+function PriceHistory(props: {
+  catalog: PriceCatalog;
+  family: Family;
+  loading: boolean;
+  onBack: () => void;
+  onOpen: (productID: string) => void;
+  onEdit: (record: PriceRecord) => void;
+  onDelete: (recordID: string) => void;
+  onQuality: (recordID: string, quality?: number) => Promise<PriceCatalog>;
+}) {
+  const records = [...props.catalog.records].sort((left, right) => right.purchasedAt.localeCompare(left.purchasedAt));
+  const [visibleCount, setVisibleCount] = useState(historyPageSize);
+  const visibleRecords = records.slice(0, visibleCount);
+  const productByID = Object.fromEntries(props.catalog.products.map((product) => [product.id, product]));
+  const storeByID = Object.fromEntries(props.catalog.stores.map((store) => [store.id, store]));
+  const memberByID = Object.fromEntries(props.family.members.map((member) => [member.id, member]));
+
+  return <div className="price-stack"><SubpageHeader title="全部历史记录" eyebrow="PRICE HISTORY" onBack={props.onBack} /><section className="price-section all-history-section"><div className="price-section-head"><div><span>ALL RECORDS</span><h2>家庭菜价记录</h2></div><small>共 {records.length} 条</small></div>{records.length ? <><div className="all-history-list">{visibleRecords.map((record) => { const product = productByID[record.productId] ?? { id: record.productId, name: "未知商品", createdAt: "" }; const store = storeByID[record.storeId]; return <article key={record.id} className="all-history-row"><ProductIcon product={product} /><div className="all-history-main"><button className="all-history-product" onClick={() => props.onOpen(record.productId)}>{product.name}</button><p>{store?.name ?? "未知店铺"} · {formatPurchaseDate(record.purchasedAt)} · {memberByID[record.memberId]?.name ?? "家庭成员"}</p><small>{entryDescription(record)}</small></div><div className="all-history-value"><strong>{formatMoney(record.normalizedPrice)}</strong><span>元/{normalizedLabels[record.normalizedUnit]}</span>{record.priceKind === "discount" && <em>优惠价</em>}</div><div className="all-history-footer"><div className="history-rating"><span>{record.quality ? "品质评级" : "补充评级"}</span><StarRating value={record.quality} onChange={(quality) => void props.onQuality(record.id, quality)} />{record.quality && <button disabled={props.loading} onClick={() => void props.onQuality(record.id, undefined)}>清除</button>}</div><div className="history-buttons"><button disabled={props.loading} onClick={() => props.onEdit(record)}>编辑</button><button disabled={props.loading} onClick={() => props.onDelete(record.id)}>删除</button></div></div></article>; })}</div>{visibleRecords.length < records.length && <button className="price-load-more" onClick={() => setVisibleCount((count) => count + historyPageSize)}>加载更多 · 还有 {records.length - visibleRecords.length} 条</button>}</> : <div className="price-empty compact">还没有菜价记录。</div>}</section></div>;
 }
 
 function PriceEditor(props: {
@@ -622,15 +678,41 @@ function latestByStore(records: PriceRecord[]) {
   return [...result.values()];
 }
 
+function latestProductRecord(productID: string, records: PriceRecord[]) {
+  let latest: PriceRecord | undefined;
+  for (const record of records) {
+    if (record.productId === productID && (!latest || record.purchasedAt > latest.purchasedAt)) latest = record;
+  }
+  return latest;
+}
+
+function productLatestEntries(catalog: PriceCatalog) {
+  const latestByProduct = new Map<string, PriceRecord>();
+  for (const record of catalog.records) {
+    const current = latestByProduct.get(record.productId);
+    if (!current || record.purchasedAt > current.purchasedAt) latestByProduct.set(record.productId, record);
+  }
+  return catalog.products.map((product) => ({
+    product,
+    record: latestByProduct.get(product.id),
+  })).sort((left, right) => {
+    if (left.record && right.record) return right.record.purchasedAt.localeCompare(left.record.purchasedAt);
+    if (left.record) return -1;
+    if (right.record) return 1;
+    return left.product.name.localeCompare(right.product.name, "zh-CN");
+  });
+}
+
 function productPriceSummary(productID: string, catalog: PriceCatalog) {
   const records = catalog.records.filter((record) => record.productId === productID);
   if (!records.length) return { storeCount: 0, latestAt: "", range: "--" };
-  const unit = records[0].normalizedUnit;
+  const newest = latestProductRecord(productID, records)!;
+  const unit = newest.normalizedUnit;
   const latest = latestByStore(records.filter((record) => record.normalizedUnit === unit));
   const prices = latest.map((record) => record.normalizedPrice);
   return {
     storeCount: new Set(records.map((record) => record.storeId)).size,
-    latestAt: records[0].purchasedAt,
+    latestAt: newest.purchasedAt,
     range: `${formatMoney(Math.min(...prices))}—${formatMoney(Math.max(...prices))} 元/${normalizedLabels[unit]}`,
   };
 }

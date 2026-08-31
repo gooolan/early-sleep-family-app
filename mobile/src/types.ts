@@ -82,3 +82,43 @@ export type Family = {
 export type FamilySession = { token: string; joinCode?: string; family: Family };
 export type IdentityStatus = { exists: boolean; phone: string; verificationRequired: boolean };
 export type FamilyBackup = { formatVersion: number; exportedAt: string; family: unknown };
+
+export type PriceUnit = "gram" | "kilogram" | "jin" | "milliliter" | "liter" | "piece" | "box" | "bottle";
+export type NormalizedPriceUnit = "jin" | "liter" | "piece" | "box" | "bottle";
+export type Product = { id: string; name: string; iconKey?: string; createdAt: string };
+export type PriceStore = { id: string; name: string; brandKey?: string; createdAt: string };
+export type PriceRecord = {
+  id: string;
+  productId: string;
+  storeId: string;
+  memberId: string;
+  purchasedAt: string;
+  entryMode: "unit_price" | "total_price";
+  unitPrice?: number;
+  totalPrice?: number;
+  quantity?: number;
+  unit: PriceUnit;
+  normalizedPrice: number;
+  normalizedUnit: NormalizedPriceUnit;
+  priceKind: "regular" | "discount";
+  referencePrice?: number;
+  referenceUnit?: PriceUnit;
+  quality?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type PriceCatalog = { products: Product[]; stores: PriceStore[]; records: PriceRecord[] };
+export type SavePriceRecordInput = {
+  productId: string;
+  storeId: string;
+  purchasedAt: string;
+  entryMode: "unit_price" | "total_price";
+  unitPrice?: number;
+  totalPrice?: number;
+  quantity?: number;
+  unit: PriceUnit;
+  priceKind: "regular" | "discount";
+  referencePrice?: number;
+  referenceUnit?: PriceUnit;
+  quality?: number;
+};

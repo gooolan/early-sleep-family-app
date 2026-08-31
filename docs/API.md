@@ -219,6 +219,73 @@ Content-Type: application/json
 
 仅创建者可调用。把 30 天规则复盘周期重置为当前时间。该接口只确认双方已经复盘规则，不生成账单、不标记奖励已结算，也不写入共同账户流水。
 
+## 家庭菜价
+
+菜价接口均需要成员令牌。两位家庭成员拥有相同的查看和纠错权限；菜价编辑不使用早睡打卡的双人确认规则。商品、店铺和价格记录也会随家庭导出与恢复。
+
+### `GET /api/v1/prices`
+
+返回完整菜价目录：`products`、`stores` 和按购买时间倒序排列的有效 `records`。没有数据时三个字段均返回空数组，不返回 `null`。
+
+### `POST /api/v1/price-products`
+
+添加商品。名称去除首尾及重复空白后必须为 1～50 个字符；同名商品不会重复创建。
+
+```json
+{"name":"猪里脊","iconKey":"meat"}
+```
+
+### `POST /api/v1/price-stores`
+
+添加店铺。完整名称可包含分店，最长 80 个字符；同名店铺不会重复创建。
+
+```json
+{"name":"永辉超市·金科店","brandKey":"yonghui"}
+```
+
+### `POST /api/v1/price-records`
+
+保存价格记录。`entryMode` 为 `unit_price` 时填写 `unitPrice`，并可用 `quantity` 记录本次实际购买数量；为 `total_price` 时填写 `totalPrice` 和 `quantity`。已填写的金额与数量必须大于 0，购买时间使用 RFC 3339；省略购买时间时使用服务器当前时间。按单价录入时，`quantity` 不参与标准单价换算，只用于保留购买量并计算本次合计。
+
+```json
+{
+  "productId":"prd_xxx",
+  "storeId":"sto_xxx",
+  "purchasedAt":"2026-08-31T10:30:00+08:00",
+  "entryMode":"total_price",
+  "totalPrice":39.8,
+  "quantity":1.2,
+  "unit":"kilogram",
+  "priceKind":"discount",
+  "referencePrice":36,
+  "referenceUnit":"jin"
+}
+```
+
+支持的 `unit` / `referenceUnit` 为 `gram`、`kilogram`、`jin`、`milliliter`、`liter`、`piece`、`box` 和 `bottle`。服务端返回未截断的 `normalizedPrice`，标准单位 `normalizedUnit` 为 `jin`、`liter`、`piece`、`box` 或 `bottle`。原价可省略；填写时必须与本次价格属于相同的重量、容量或计件维度。
+
+### `PATCH /api/v1/price-records/{id}`
+
+用与创建记录相同的完整请求体编辑一条有效记录。保留原记录成员和创建时间，并重新计算标准化价格。
+
+### `PATCH /api/v1/price-records/{id}/quality`
+
+补充、修改或清除具体购买记录的 1～5 星品质评分：
+
+```json
+{"quality":5}
+```
+
+清除评分时传 `{"quality":null}`。
+
+### `DELETE /api/v1/price-records/{id}`
+
+删除价格记录并立即从菜价目录、常用排序、摘要和趋势中排除。服务端保留可恢复标记，以支持短时间撤销。
+
+### `POST /api/v1/price-records/{id}/restore`
+
+撤销删除，恢复该记录并重新纳入所有统计。
+
 ## 主要错误码
 
 | HTTP | code | 含义 |

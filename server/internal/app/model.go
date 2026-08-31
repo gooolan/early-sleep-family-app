@@ -10,7 +10,7 @@ const (
 	LegacyWeekCalendar       = "monday-v1"
 	CurrentWeekCalendar      = "sunday-v2"
 	CutoverWeekCalendar      = "cutover-v2"
-	CurrentFamilyVersion     = 7
+	CurrentFamilyVersion     = 8
 )
 
 type RuleTier struct {
@@ -143,6 +143,9 @@ type Family struct {
 	Pending               []CheckinChange   `json:"pendingChanges,omitempty"`
 	PendingExemptions     []ExemptionChange `json:"pendingExemptions,omitempty"`
 	RewardReviewStartedAt time.Time         `json:"rewardReviewStartedAt"`
+	Products              []Product         `json:"products"`
+	PriceStores           []PriceStore      `json:"priceStores"`
+	PriceRecords          []PriceRecord     `json:"priceRecords"`
 }
 
 type MemberView struct {

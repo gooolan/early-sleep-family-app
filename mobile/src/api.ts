@@ -1,4 +1,4 @@
-import type { Family, FamilyBackup, FamilySession, IdentityStatus, Settings } from "./types";
+import type { Family, FamilyBackup, FamilySession, IdentityStatus, PriceCatalog, SavePriceRecordInput, Settings } from "./types";
 
 export class APIError extends Error {
   code: string;
@@ -115,6 +115,53 @@ export class APIClient {
     return this.data<Family>("/api/v1/family/settings", {
       method: "PATCH",
       body: JSON.stringify(settings),
+    });
+  }
+
+  async prices(): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>("/api/v1/prices");
+  }
+
+  async createProduct(name: string, iconKey = ""): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>("/api/v1/price-products", {
+      method: "POST",
+      body: JSON.stringify({ name, iconKey }),
+    });
+  }
+
+  async createPriceStore(name: string, brandKey = ""): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>("/api/v1/price-stores", {
+      method: "POST",
+      body: JSON.stringify({ name, brandKey }),
+    });
+  }
+
+  async createPriceRecord(input: SavePriceRecordInput): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>("/api/v1/price-records", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updatePriceRecord(recordID: string, input: SavePriceRecordInput): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>(`/api/v1/price-records/${recordID}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deletePriceRecord(recordID: string): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>(`/api/v1/price-records/${recordID}`, { method: "DELETE" });
+  }
+
+  async restorePriceRecord(recordID: string): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>(`/api/v1/price-records/${recordID}/restore`, { method: "POST" });
+  }
+
+  async updatePriceQuality(recordID: string, quality?: number): Promise<PriceCatalog> {
+    return this.data<PriceCatalog>(`/api/v1/price-records/${recordID}/quality`, {
+      method: "PATCH",
+      body: JSON.stringify({ quality: quality ?? null }),
     });
   }
 

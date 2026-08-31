@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -126,6 +127,87 @@ func validateFamilyBackup(formatVersion int, current Family, candidate Family) e
 	err = validatePendingBackup(candidate.Pending, candidate.PendingExemptions, candidate.ActiveWeek, candidate.Members, candidate.Timezone)
 	if err != nil {
 		return err
+	}
+	err = validatePriceBackup(candidate)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func validatePriceBackup(family Family) error {
+	productIDs := make(map[string]struct{}, len(family.Products))
+	productNames := make(map[string]struct{}, len(family.Products))
+	for _, product := range family.Products {
+		name, err := validateCatalogName(product.Name, 50)
+		if err != nil || product.ID == "" || name != product.Name {
+			return fmt.Errorf("%w: invalid price product", ErrInvalidBackup)
+		}
+		key := strings.ToLower(name)
+		if _, exists := productIDs[product.ID]; exists {
+			return fmt.Errorf("%w: duplicate price product id", ErrInvalidBackup)
+		}
+		if _, exists := productNames[key]; exists {
+			return fmt.Errorf("%w: duplicate price product name", ErrInvalidBackup)
+		}
+		productIDs[product.ID] = struct{}{}
+		productNames[key] = struct{}{}
+	}
+
+	storeIDs := make(map[string]struct{}, len(family.PriceStores))
+	storeNames := make(map[string]struct{}, len(family.PriceStores))
+	for _, priceStore := range family.PriceStores {
+		name, err := validateCatalogName(priceStore.Name, 80)
+		if err != nil || priceStore.ID == "" || name != priceStore.Name {
+			return fmt.Errorf("%w: invalid price store", ErrInvalidBackup)
+		}
+		key := strings.ToLower(name)
+		if _, exists := storeIDs[priceStore.ID]; exists {
+			return fmt.Errorf("%w: duplicate price store id", ErrInvalidBackup)
+		}
+		if _, exists := storeNames[key]; exists {
+			return fmt.Errorf("%w: duplicate price store name", ErrInvalidBackup)
+		}
+		storeIDs[priceStore.ID] = struct{}{}
+		storeNames[key] = struct{}{}
+	}
+
+	recordIDs := make(map[string]struct{}, len(family.PriceRecords))
+	for _, record := range family.PriceRecords {
+		if record.ID == "" || record.PurchasedAt.IsZero() || record.CreatedAt.IsZero() || record.UpdatedAt.IsZero() {
+			return fmt.Errorf("%w: invalid price record identity or time", ErrInvalidBackup)
+		}
+		if _, exists := recordIDs[record.ID]; exists {
+			return fmt.Errorf("%w: duplicate price record id", ErrInvalidBackup)
+		}
+		if _, exists := productIDs[record.ProductID]; !exists {
+			return fmt.Errorf("%w: price record product does not exist", ErrInvalidBackup)
+		}
+		if _, exists := storeIDs[record.StoreID]; !exists {
+			return fmt.Errorf("%w: price record store does not exist", ErrInvalidBackup)
+		}
+		if _, exists := family.Members[record.MemberID]; !exists {
+			return fmt.Errorf("%w: price record member does not exist", ErrInvalidBackup)
+		}
+		normalizedPrice, normalizedUnit, err := normalizePrice(record.EntryMode, record.UnitPrice, record.TotalPrice, record.Quantity, record.Unit)
+		if err != nil || normalizedUnit != record.NormalizedUnit || math.Abs(normalizedPrice-record.NormalizedPrice) > 0.000001 {
+			return fmt.Errorf("%w: invalid normalized price", ErrInvalidBackup)
+		}
+		if record.PriceKind != PriceKindRegular && record.PriceKind != PriceKindDiscount {
+			return fmt.Errorf("%w: invalid price kind", ErrInvalidBackup)
+		}
+		if record.Quality != nil && (*record.Quality < 1 || *record.Quality > 5) {
+			return fmt.Errorf("%w: invalid price quality", ErrInvalidBackup)
+		}
+		if record.ReferencePrice != nil {
+			_, referenceUnit, exists := unitFactor(record.ReferenceUnit)
+			if !positiveFinite(*record.ReferencePrice) || !exists || referenceUnit != record.NormalizedUnit {
+				return fmt.Errorf("%w: invalid reference price", ErrInvalidBackup)
+			}
+		} else if record.ReferenceUnit != "" {
+			return fmt.Errorf("%w: reference unit has no price", ErrInvalidBackup)
+		}
+		recordIDs[record.ID] = struct{}{}
 	}
 	return nil
 }

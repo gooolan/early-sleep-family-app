@@ -2,9 +2,10 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { APIClient, APIError } from "./api";
+import { PriceView } from "./PriceView";
 import type { Archive, DayResult, Family, FamilyBackup, Member, PendingChange, PendingExemption, RuleTier, Settings, WeekSummary } from "./types";
 
-type Tab = "home" | "records" | "archives" | "settings";
+type Tab = "home" | "records" | "prices" | "archives" | "settings";
 type SettingsSection = "root" | "profile" | "score" | "reward" | "levels" | "review" | "backup";
 type SetupMode = "create" | "join";
 type SyncState = "syncing" | "synced" | "offline";
@@ -299,6 +300,7 @@ export default function App() {
         {error && <div className="toast error">{error}<button onClick={() => setError("")}>×</button></div>}
         {tab === "home" && <Home family={family} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} />}
         {tab === "records" && <Records family={family} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} onSave={(date, time) => run(() => client.saveCheckin(date, time), approvalMessage)} onReview={(id, approve) => run(() => client.reviewCheckinChange(id, approve), approve ? "修改已确认，本周分数已更新" : "修改已拒绝")} onCancel={(id) => run(() => client.cancelCheckinChange(id), "修改申请已撤回")} onExempt={(date) => run(() => client.requestExemption(date), family.members.length > 1 ? "豁免申请已发送给对方确认" : "本日已豁免")} onReviewExemption={(id, approve) => run(() => client.reviewExemptionChange(id, approve), approve ? "豁免已确认，本日记为 0 分、0 罚金" : "豁免申请已拒绝")} onCancelExemption={(id) => run(() => client.cancelExemptionChange(id), "豁免申请已撤回")} />}
+        {tab === "prices" && <PriceView client={client} family={family} />}
         {tab === "archives" && <WeeklyReports family={family} />}
         {tab === "settings" && <SettingsView family={family} backendURL={backendURL} joinCode={joinCode} loading={loading} section={settingsSection} onSectionChange={setSettingsSection} onSaveProfile={(name) => run(() => client.saveProfile(name), "个人信息已更新")} onSave={(settings) => run(() => client.saveSettings(settings), "本周设置已保存")} onCompleteReview={() => run(() => client.completeRewardReview(), "已完成本轮 30 天规则复盘")} onExport={exportBackup} onRestore={(backup) => run(() => client.restoreFamily(backup), "家庭数据已从备份恢复")} onExit={clearSession} />}
       </main>
@@ -306,6 +308,7 @@ export default function App() {
       <nav className="bottom-nav">
         <NavButton active={tab === "home"} label="今天" icon="☾" onClick={() => changeTab("home")} />
         <NavButton active={tab === "records"} label="记录" icon="✓" badge={reviewCount} onClick={() => changeTab("records")} />
+        <NavButton active={tab === "prices"} label="菜价" icon="⌕" onClick={() => changeTab("prices")} />
         <NavButton active={tab === "archives"} label="周报" icon="▥" onClick={() => changeTab("archives")} />
         <NavButton active={tab === "settings"} label="设置" icon="⚙" onClick={() => changeTab("settings")} />
       </nav>

@@ -176,6 +176,9 @@ func (service *Service) CreateFamily(ctx context.Context, request CreateFamilyRe
 		Pending:               make([]CheckinChange, 0),
 		PendingExemptions:     make([]ExemptionChange, 0),
 		RewardReviewStartedAt: now.UTC(),
+		Products:              make([]Product, 0),
+		PriceStores:           make([]PriceStore, 0),
+		PriceRecords:          make([]PriceRecord, 0),
 	}
 
 	err = service.store.Create(ctx, family)

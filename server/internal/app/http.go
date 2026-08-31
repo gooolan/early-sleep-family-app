@@ -47,6 +47,14 @@ func NewHTTPHandler(service *Service, logger *slog.Logger, updateDirectory strin
 	mux.HandleFunc("POST /api/v1/exemption-changes/{id}/reject", server.rejectExemptionChange)
 	mux.HandleFunc("POST /api/v1/exemption-changes/{id}/cancel", server.cancelExemptionChange)
 	mux.HandleFunc("POST /api/v1/reward-review/complete", server.completeRewardReview)
+	mux.HandleFunc("GET /api/v1/prices", server.getPriceCatalog)
+	mux.HandleFunc("POST /api/v1/price-products", server.createPriceProduct)
+	mux.HandleFunc("POST /api/v1/price-stores", server.createPriceStore)
+	mux.HandleFunc("POST /api/v1/price-records", server.createPriceRecord)
+	mux.HandleFunc("PATCH /api/v1/price-records/{id}", server.updatePriceRecord)
+	mux.HandleFunc("DELETE /api/v1/price-records/{id}", server.deletePriceRecord)
+	mux.HandleFunc("POST /api/v1/price-records/{id}/restore", server.restorePriceRecord)
+	mux.HandleFunc("PATCH /api/v1/price-records/{id}/quality", server.updatePriceQuality)
 	return server.middleware(mux)
 }
 
@@ -54,7 +62,7 @@ func (server *HTTPServer) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Access-Control-Allow-Origin", "*")
 		writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
+		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		if request.Method == http.MethodOptions {
 			writer.WriteHeader(http.StatusNoContent)
 			return
@@ -294,6 +302,103 @@ func (server *HTTPServer) completeRewardReview(writer http.ResponseWriter, reque
 		return
 	}
 	writeData(writer, http.StatusOK, family)
+}
+
+func (server *HTTPServer) getPriceCatalog(writer http.ResponseWriter, request *http.Request) {
+	catalog, err := server.service.GetPriceCatalog(request.Context(), bearerToken(request))
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, catalog)
+}
+
+func (server *HTTPServer) createPriceProduct(writer http.ResponseWriter, request *http.Request) {
+	var input CreateProductRequest
+	err := decodeJSON(writer, request, &input)
+	if err != nil {
+		return
+	}
+	catalog, err := server.service.CreateProduct(request.Context(), bearerToken(request), input)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusCreated, catalog)
+}
+
+func (server *HTTPServer) createPriceStore(writer http.ResponseWriter, request *http.Request) {
+	var input CreatePriceStoreRequest
+	err := decodeJSON(writer, request, &input)
+	if err != nil {
+		return
+	}
+	catalog, err := server.service.CreatePriceStore(request.Context(), bearerToken(request), input)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusCreated, catalog)
+}
+
+func (server *HTTPServer) createPriceRecord(writer http.ResponseWriter, request *http.Request) {
+	var input SavePriceRecordRequest
+	err := decodeJSON(writer, request, &input)
+	if err != nil {
+		return
+	}
+	catalog, err := server.service.CreatePriceRecord(request.Context(), bearerToken(request), input)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusCreated, catalog)
+}
+
+func (server *HTTPServer) updatePriceRecord(writer http.ResponseWriter, request *http.Request) {
+	var input SavePriceRecordRequest
+	err := decodeJSON(writer, request, &input)
+	if err != nil {
+		return
+	}
+	catalog, err := server.service.UpdatePriceRecord(request.Context(), bearerToken(request), request.PathValue("id"), input)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, catalog)
+}
+
+func (server *HTTPServer) deletePriceRecord(writer http.ResponseWriter, request *http.Request) {
+	catalog, err := server.service.DeletePriceRecord(request.Context(), bearerToken(request), request.PathValue("id"))
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, catalog)
+}
+
+func (server *HTTPServer) restorePriceRecord(writer http.ResponseWriter, request *http.Request) {
+	catalog, err := server.service.RestorePriceRecord(request.Context(), bearerToken(request), request.PathValue("id"))
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, catalog)
+}
+
+func (server *HTTPServer) updatePriceQuality(writer http.ResponseWriter, request *http.Request) {
+	var input UpdatePriceQualityRequest
+	err := decodeJSON(writer, request, &input)
+	if err != nil {
+		return
+	}
+	catalog, err := server.service.UpdatePriceQuality(request.Context(), bearerToken(request), request.PathValue("id"), input)
+	if err != nil {
+		server.handleError(writer, request, err)
+		return
+	}
+	writeData(writer, http.StatusOK, catalog)
 }
 
 func (server *HTTPServer) handleError(writer http.ResponseWriter, request *http.Request, err error) {

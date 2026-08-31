@@ -281,6 +281,15 @@ func normalizeFamily(family Family) Family {
 	if family.Archives == nil {
 		family.Archives = make([]WeeklyArchive, 0)
 	}
+	if family.Products == nil {
+		family.Products = make([]Product, 0)
+	}
+	if family.PriceStores == nil {
+		family.PriceStores = make([]PriceStore, 0)
+	}
+	if family.PriceRecords == nil {
+		family.PriceRecords = make([]PriceRecord, 0)
+	}
 	for index := range family.Archives {
 		archive := &family.Archives[index]
 		archive.SettingsSnapshot = NormalizeSettings(archive.SettingsSnapshot)

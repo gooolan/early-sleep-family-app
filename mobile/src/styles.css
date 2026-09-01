@@ -385,7 +385,8 @@ h3 { margin-bottom: 12px; }
 .price-heading p { margin: 7px 0 0; color: #72827c; font-size: 12px; }
 .price-search-card { position: relative; z-index: 6; padding: 15px; border: 1px solid #eadfd7; border-radius: 19px; background: #fffaf6; box-shadow: 0 10px 28px #6b483d0c; }
 .search-field { position: relative; }
-.search-field > span { position: absolute; z-index: 1; top: 50%; left: 14px; transform: translateY(-52%); color: #ba775d; font-size: 23px; pointer-events: none; }
+.search-field > span { position: absolute; z-index: 1; top: 50%; left: 15px; display: grid; width: 19px; height: 19px; transform: translateY(-50%); color: #a96751; pointer-events: none; }
+.search-field > span svg { width: 100%; height: 100%; }
 .search-field input { padding-left: 43px; background: #fff; }
 .price-search-results, .catalog-suggestions { position: absolute; z-index: 8; left: 14px; right: 14px; overflow: hidden; margin-top: 7px; border: 1px solid #eadfd7; border-radius: 14px; background: white; box-shadow: 0 14px 35px #4c35272a; }
 .price-search-results > button, .catalog-suggestions button { width: 100%; border: 0; border-bottom: 1px solid #f1e8e2; padding: 12px; color: #40534c; text-align: left; background: white; }
@@ -405,13 +406,36 @@ h3 { margin-bottom: 12px; }
 .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 7px; }
 .quick-grid button { display: grid; place-items: center; gap: 5px; min-width: 0; border: 0; padding: 4px 1px; color: #45574f; font-size: 10px; background: transparent; }
 .quick-grid button > span { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.product-icon { display: grid; place-items: center; width: 39px; height: 39px; border-radius: 13px; color: #fff; background: #70a28f; font-size: 12px; font-style: normal; font-weight: 800; box-shadow: inset 0 0 0 1px #ffffff3f; }
+.product-icon { display: grid; place-items: center; width: 39px; height: 39px; border: 1px solid #cfe4dc; border-radius: 13px; color: #47816e; background: #edf7f3; font-size: 12px; font-style: normal; font-weight: 800; }
 .product-icon.large { width: 56px; height: 56px; border-radius: 18px; font-size: 16px; }
+.product-icon.compact { width: 32px; height: 32px; border-radius: 10px; }
 .product-icon > span { display: block; line-height: 1; }
-.product-icon svg { width: 25px; height: 25px; fill: currentColor; stroke: none; }
+.product-icon svg { width: 23px; height: 23px; fill: currentColor; stroke: none; }
+.product-icon.compact svg { width: 19px; height: 19px; }
 .product-icon.large svg { width: 34px; height: 34px; }
 .product-icon .product-fallback { font-size: 14px; }
-.icon-pork, .icon-beef, .icon-meat { background: #ca735e; }.icon-poultry { background: #cb925f; }.icon-fish { background: #5a91ac; }.icon-egg { color: #7c6339; background: #edcf87; }.icon-vegetable { background: #65a36d; }.icon-tomato { background: #d27059; }.icon-fruit { background: #d77f61; }.icon-grain { background: #b89c67; }.icon-dairy { background: #789ec3; }.icon-drink { background: #6ba9ad; }.icon-bread { background: #c58f60; }.icon-noodle { background: #c89861; }.icon-tofu { background: #86a785; }.icon-mushroom { background: #a78375; }.icon-condiment { background: #b8795e; }.icon-oil { background: #c39b47; }.icon-snack { background: #a579a8; }.icon-frozen { background: #65a2bf; }.icon-household { background: #708fa2; }.icon-fallback { background: #859b91; }
+.product-icon.product-line { overflow: hidden; box-shadow: inset 0 0 0 1px #ffffff85; }
+.product-line-glyph { display: block; width: 76%; height: 76%; background: currentColor; -webkit-mask: var(--product-line-source) center / contain no-repeat; mask: var(--product-line-source) center / contain no-repeat; }
+.product-icon.product-line.compact .product-line-glyph { width: 78%; height: 78%; }
+.product-icon.product-line.large .product-line-glyph { width: 74%; height: 74%; }
+.product-line.tone-greens { border-color: #cce3d4; color: #4c8662; background: #edf7f1; }
+.product-line.tone-carrot { border-color: #efd4c3; color: #c87343; background: #fff2e9; }
+.product-line.tone-fruit { border-color: #efd3cb; color: #c86e58; background: #fff1ed; }
+.product-line.tone-grape { border-color: #d7e4c3; color: #78984f; background: #f2f7ea; }
+.product-line.tone-pork { border-color: #eccfca; color: #b9655d; background: #fff0ee; }
+.product-line.tone-poultry { border-color: #ead7bd; color: #b77b48; background: #fff5e9; }
+.product-line.tone-beef { border-color: #e4cbc7; color: #a75e55; background: #faefed; }
+.product-line.tone-fish, .product-line.tone-seafood { border-color: #cee0e8; color: #4f8298; background: #eef7fa; }
+.product-line.tone-egg, .product-line.tone-staple { border-color: #e7dcc1; color: #96743f; background: #faf6e9; }
+.product-line.tone-tofu { border-color: #e5dac8; color: #a37d50; background: #faf5ec; }
+.product-line.tone-mushroom { border-color: #dfd3cd; color: #8a6d61; background: #f8f2ef; }
+.product-line.tone-fallback { border-color: #d8e1dd; color: #667d74; background: #f2f6f4; }
+.icon-pork, .icon-beef, .icon-meat, .icon-poultry { border-color: #efd5cd; color: #b76550; background: #fff2ed; }
+.icon-fish, .icon-dairy, .icon-drink, .icon-frozen { border-color: #d1e3eb; color: #4f8198; background: #eef7fa; }
+.icon-egg, .icon-bread, .icon-noodle, .icon-grain, .icon-condiment, .icon-oil { border-color: #eadfc7; color: #96733e; background: #faf6e9; }
+.icon-tomato, .icon-fruit, .icon-snack { border-color: #efd8d2; color: #b96954; background: #fff1ed; }
+.icon-vegetable, .icon-tofu, .icon-mushroom { border-color: #cee4d4; color: #4f8461; background: #eef8f1; }
+.icon-household, .icon-fallback { border-color: #d8e0dd; color: #657c73; background: #f2f6f4; }
 .latest-price-section { padding-bottom: 7px; }
 .latest-product-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .latest-product-row { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr) 7px; grid-template-rows: auto auto; align-items: center; gap: 5px 7px; min-width: 0; width: 100%; border: 1px solid #e4ece8; border-radius: 14px; padding: 9px; color: #40534c; text-align: left; background: #fbfefc; box-shadow: 0 4px 12px rgb(46 79 68 / 4%); }
@@ -485,11 +509,26 @@ h3 { margin-bottom: 12px; }
 .price-subhead span { line-height: 1; }
 .price-subhead h2 { margin: 0; font-size: 21px; line-height: 1.15; }
 .price-form-card { display: grid; gap: 13px; }
+.catalog-card { gap: 18px; padding: 18px; }
+.catalog-block { display: grid; gap: 12px; }
+.catalog-divider { height: 1px; background: #e8eeeb; }
 .catalog-input { position: relative; }
 .catalog-suggestions { top: 73px; left: 0; right: 0; }
-.quick-chips { display: flex; gap: 6px; margin-top: -5px; overflow-x: auto; scrollbar-width: none; }
-.quick-chips button { flex: none; border: 1px solid #e5ddd6; border-radius: 99px; padding: 7px 10px; color: #68766f; font-size: 10px; background: #fffaf6; }
-.store-chips button { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; }
+.quick-pick { display: grid; gap: 8px; }
+.quick-pick-head { display: flex; align-items: center; justify-content: space-between; color: #6d7d77; }
+.quick-pick-head span { font-size: 10px; font-weight: 800; }
+.quick-pick-head small { color: #9aa59f; font-size: 8px; }
+.product-pick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.product-pick-grid button { position: relative; display: grid; place-items: center; min-width: 0; gap: 5px; border: 1px solid #e2eae6; border-radius: 13px; padding: 8px 3px 7px; color: #50635c; font-size: 9px; background: #fbfdfc; }
+.product-pick-grid button > span { width: 100%; overflow: hidden; padding: 0 2px; text-overflow: ellipsis; white-space: nowrap; }
+.store-pick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.store-pick-grid button { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; min-width: 0; gap: 8px; border: 1px solid #e2eae6; border-radius: 13px; padding: 6px 9px 6px 6px; color: #50635c; font-size: 9px; text-align: left; background: #fbfdfc; }
+.store-pick-grid button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-pick-grid button.selected, .store-pick-grid button.selected { border-color: #6d9e8d; color: #315f50; font-weight: 800; background: #edf7f3; box-shadow: 0 0 0 2px #6d9e8d14; }
+.product-pick-grid button.selected::after, .store-pick-grid button.selected::after { content: "✓"; position: absolute; top: 4px; right: 5px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; color: white; background: #5f927f; font-size: 8px; }
+.catalog-option { display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.catalog-option > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-option > em { color: #91a099; font-size: 8px; font-style: normal; }
 .price-segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 12px; background: #edf1ef; }
 .price-segmented button { border: 0; border-radius: 10px; padding: 9px; color: #7d8884; font-size: 11px; background: transparent; }
 .price-segmented button.active { color: #334b43; font-weight: 800; background: white; box-shadow: 0 2px 8px #4f625915; }
@@ -532,7 +571,7 @@ h3 { margin-bottom: 12px; }
 .store-icon.compact { width: 27px; height: 27px; border-radius: 9px; }
 .store-icon.compact svg, .store-icon.compact img { width: 19px; height: 19px; }
 .store-icon.compact > span { font-size: 9px; }
-.brand-yonghui, .brand-xinshiji { color: #c84e40; }.brand-hema { color: #397fa8; background: #eff8fd; }.brand-tiaoma { color: #f93f06; background: #fff8f4; }.brand-market { color: #4d8b70; background: #eff8f3; }.brand-stall { color: #a97845; background: #fff7eb; }.brand-kebainian { color: #9a6745; }.brand-qiandama { color: #d65943; }.brand-store { color: #6e7f78; background: #f5f8f6; }
+.brand-yonghui, .brand-xinshiji { color: #c84e40; }.brand-hema { color: #397fa8; background: #eff8fd; }.brand-tiaoma { color: #f93f06; background: #fff8f4; }.brand-supermarket { color: #4f806f; background: #eff8f4; }.brand-market { color: #4d8b70; background: #eff8f3; }.brand-stall { color: #a97845; background: #fff7eb; }.brand-kebainian { color: #9a6745; }.brand-qiandama { color: #d65943; }.brand-store { color: #6e7f78; background: #f5f8f6; }
 .store-price-main { min-width: 0; }
 .store-price-main h3 { overflow: hidden; margin: 0 0 3px; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .store-price-main p { margin: 0; color: #89928e; font-size: 9px; }

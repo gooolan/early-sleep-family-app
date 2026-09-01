@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import type { APIClient } from "./api";
 import { APIError } from "./api";
 import tiaomaLogo from "./assets/tiaoma-logo.svg";
-import { IconfontGlyph, productIconfontAssets, storeIconfontAssets } from "./iconfontAssets";
+import { IconfontGlyph, storeIconfontAssets } from "./iconfontAssets";
+import { PriceGlyph } from "./PriceIcons";
+import { productLineIconAsset } from "./productLineIconAssets";
 import type { Family, NormalizedPriceUnit, PriceCatalog, PriceRecord, PriceStore, PriceUnit, Product, SavePriceRecordInput } from "./types";
 
 type PriceScreen =
@@ -299,7 +301,7 @@ function PriceHome(props: {
     <div className="price-stack">
       <PriceHeader title="家庭菜价" subtitle="先看最新价格，完整记录与评级统一收在页面下方。" />
       <section className="price-search-card">
-        <div className="search-field"><span aria-hidden="true">⌕</span><input disabled={!props.ready} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.initialLoading ? "菜价加载中…" : "搜索商品，例如番茄、猪里脊"} /></div>
+        <div className="search-field"><span aria-hidden="true"><PriceGlyph name="search" /></span><input disabled={!props.ready} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.initialLoading ? "菜价加载中…" : "搜索商品，例如番茄、猪里脊"} /></div>
         {query.trim() && visible.length === 0 && !exact && <button className="price-add-result" disabled={adding} onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}
         {query.trim() && visible.length > 0 && <div className="price-search-results">{visible.map((product) => <ProductSearchRow key={product.id} product={product} catalog={catalog} onClick={() => props.onOpen(product.id)} />)}{!exact && <button onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}</div>}
       </section>
@@ -444,11 +446,16 @@ function PriceEditor(props: {
     <form className="price-stack price-editor" onSubmit={(event) => void submit(event, false)}>
       <SubpageHeader title={props.editRecord ? "编辑价格记录" : "记录菜价"} eyebrow={savedCount ? `本次已记录 ${savedCount} 项` : "QUICK ENTRY"} onBack={props.onBack} />
       {lastSaved && <div className="save-undo">上一项已保存 <button type="button" onClick={() => void undoSaved()}>恢复表单</button></div>}
-      <section className="card price-form-card">
-        <CatalogInput inputRef={productInput} label="商品" placeholder="搜索或添加商品" value={draft.productName} items={props.catalog.products.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, productName: value })} />
-        <div className="quick-chips">{commonProducts(props.catalog).slice(0, 8).map((product) => <button type="button" key={product.id} onClick={() => setDraft({ ...draft, productName: product.name })}>{product.name}</button>)}</div>
-        <CatalogInput label="店铺" placeholder="搜索或添加店铺，可包含分店名" value={draft.storeName} items={props.catalog.stores.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, storeName: value })} />
-        <div className="quick-chips store-chips">{storeChipOptions(props.catalog).map((store) => <button type="button" key={store.id} onClick={() => setDraft({ ...draft, storeName: store.name })}><StoreIcon store={store} compact /><span>{store.name}</span></button>)}</div>
+      <section className="card price-form-card catalog-card">
+        <div className="catalog-block">
+          <CatalogInput inputRef={productInput} kind="product" label="商品" placeholder="搜索或添加商品" value={draft.productName} items={props.catalog.products.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, productName: value })} />
+          {commonProducts(props.catalog).length > 0 && <div className="quick-pick"><div className="quick-pick-head"><span>最近使用</span><small>近 30 天</small></div><div className="product-pick-grid">{commonProducts(props.catalog).slice(0, 8).map((product) => <button type="button" key={product.id} className={sameName(draft.productName, product.name) ? "selected" : ""} aria-pressed={sameName(draft.productName, product.name)} onClick={() => setDraft({ ...draft, productName: product.name })}><ProductIcon product={product} compact /><span>{product.name}</span></button>)}</div></div>}
+        </div>
+        <div className="catalog-divider" />
+        <div className="catalog-block">
+          <CatalogInput kind="store" label="店铺" placeholder="搜索店铺，也可以输入分店名" value={draft.storeName} items={props.catalog.stores.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, storeName: value })} />
+          <div className="quick-pick"><div className="quick-pick-head"><span>常用店铺</span><small>可直接选择</small></div><div className="store-pick-grid">{storeChipOptions(props.catalog).map((store) => <button type="button" key={store.id} className={sameName(draft.storeName, store.name) ? "selected" : ""} aria-pressed={sameName(draft.storeName, store.name)} onClick={() => setDraft({ ...draft, storeName: store.name })}><StoreIcon store={store} compact /><span>{store.name}</span></button>)}</div></div>
+        </div>
       </section>
 
       <section className="card price-form-card">
@@ -538,11 +545,11 @@ function PriceTrend({ records, stores }: { records: PriceRecord[]; stores: Price
   return <section className="price-section trend-section"><div className="price-section-head"><div><span>PRICE TREND</span><h2>价格趋势</h2></div><select value={storeID} onChange={(event) => setStoreID(event.target.value)}><option value="all">全部店铺</option>{usedStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>{visible.length < 2 ? <div className="price-empty compact">记录不足，继续记录后可查看变化。</div> : <><svg className="price-trend" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="商品价格趋势图"><line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="trend-axis" />{usedStores.filter((store) => storeID === "all" || store.id === storeID).map((store, index) => { const points = visible.filter((record) => record.storeId === store.id); return <g key={store.id}><polyline points={points.map((record) => `${x(record)},${y(record)}`).join(" ")} fill="none" stroke={colors[index % colors.length]} strokeWidth="3" />{points.map((record) => <circle key={record.id} cx={x(record)} cy={y(record)} r={record.priceKind === "discount" ? 6 : 4} fill={record.priceKind === "discount" ? "#fff" : colors[index % colors.length]} stroke={colors[index % colors.length]} strokeWidth="3" />)}</g>; })}</svg><div className="trend-legend">{usedStores.filter((store) => storeID === "all" || store.id === storeID).map((store, index) => <span key={store.id}><i style={{ background: colors[index % colors.length] }} />{store.name}</span>)}<em>空心大点为优惠价</em></div></>}</section>;
 }
 
-function CatalogInput({ label, placeholder, value, items, onChange, inputRef }: { label: string; placeholder: string; value: string; items: string[]; onChange: (value: string) => void; inputRef?: RefObject<HTMLInputElement | null> }) {
+function CatalogInput({ kind, label, placeholder, value, items, onChange, inputRef }: { kind: "product" | "store"; label: string; placeholder: string; value: string; items: string[]; onChange: (value: string) => void; inputRef?: RefObject<HTMLInputElement | null> }) {
   const [focused, setFocused] = useState(false);
   const matches = items.filter((item) => !value.trim() || item.includes(value.trim())).slice(0, 5);
   const exact = items.some((item) => sameName(item, value));
-  return <label className="catalog-input">{label}<div className="search-field"><span aria-hidden="true">⌕</span><input ref={inputRef} value={value} placeholder={placeholder} onFocus={() => setFocused(true)} onChange={(event) => { onChange(event.target.value); setFocused(true); }} onBlur={() => window.setTimeout(() => setFocused(false), 120)} /></div>{focused && <div className="catalog-suggestions">{matches.map((item) => <button type="button" key={item} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(item); setFocused(false); }}>{item}</button>)}{value.trim() && !exact && <button type="button" className="add" onMouseDown={(event) => event.preventDefault()} onClick={() => setFocused(false)}>＋ 保存时添加“{value.trim()}”</button>}</div>}</label>;
+  return <label className="catalog-input">{label}<div className="search-field"><span aria-hidden="true"><PriceGlyph name="search" /></span><input ref={inputRef} aria-label={label} value={value} placeholder={placeholder} onFocus={() => setFocused(true)} onChange={(event) => { onChange(event.target.value); setFocused(true); }} onBlur={() => window.setTimeout(() => setFocused(false), 120)} /></div>{focused && <div className="catalog-suggestions">{matches.map((item) => <button type="button" className="catalog-option" key={item} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(item); setFocused(false); }}>{kind === "product" ? <ProductIcon product={{ id: item, name: item, createdAt: "" }} compact /> : <StoreIcon store={{ id: item, name: item, createdAt: "" }} compact />}<span>{item}</span><em>选择</em></button>)}{value.trim() && !exact && <button type="button" className="add" onMouseDown={(event) => event.preventDefault()} onClick={() => setFocused(false)}>＋ 保存时添加“{value.trim()}”</button>}</div>}</label>;
 }
 
 function Segmented({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
@@ -565,18 +572,17 @@ function SubpageHeader({ title, eyebrow, onBack }: { title: string; eyebrow: str
   return <div className="price-subhead"><button onClick={onBack} aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button><div><span>{eyebrow}</span><h2>{title}</h2></div></div>;
 }
 
-function ProductIcon({ product, large = false }: { product: Product; large?: boolean }) {
-  const inferredKey = productIconKey(product.name);
-  const storedKey = product.iconKey ?? "";
-  const key = productIconfontAssets[inferredKey] ? inferredKey : productIconfontAssets[storedKey] ? storedKey : "fallback";
-  const asset = productIconfontAssets[key];
-  return <i className={`product-icon icon-${key} ${large ? "large" : ""}`}>{asset ? <IconfontGlyph asset={asset} /> : <span className="product-fallback">{product.name.trim().slice(0, 1) || "物"}</span>}</i>;
+function ProductIcon({ product, large = false, compact = false }: { product: Product; large?: boolean; compact?: boolean }) {
+  const lineIcon = productLineIconAsset(product.name);
+  const sizeClasses = `${large ? "large" : ""} ${compact ? "compact" : ""}`;
+  const style = { "--product-line-source": `url("${lineIcon.source}")` } as CSSProperties;
+  return <i className={`product-icon product-line tone-${lineIcon.tone} ${sizeClasses}`} aria-hidden="true"><span className="product-line-glyph" style={style} /></i>;
 }
 
 function StoreIcon({ store, compact = false }: { store?: PriceStore; compact?: boolean }) {
   const inferredBrand = storeBrandKey(store?.name ?? "");
   const brand = inferredBrand !== "store" ? inferredBrand : store?.brandKey || "store";
-  const asset = storeIconfontAssets[brand];
+  const asset = storeIconfontAssets[brand] ?? (brand === "supermarket" ? storeIconfontAssets.market : undefined);
   const text: Record<string, string> = { xinshiji: "新", kebainian: "客", qiandama: "钱" };
   return <i className={`store-icon brand-${brand} ${compact ? "compact" : ""}`}>{brand === "tiaoma" ? <img src={tiaomaLogo} alt="" /> : asset ? <IconfontGlyph asset={asset} /> : <span>{text[brand] ?? store?.name.trim().slice(0, 1) ?? "店"}</span>}</i>;
 }
@@ -762,8 +768,8 @@ function productIconKey(name: string) {
   if (/豆腐|豆干|腐竹|豆皮/.test(name)) return "tofu";
   if (/蘑菇|香菇|菌菇|木耳/.test(name)) return "mushroom";
   if (/番茄|西红柿/.test(name)) return "tomato";
-  if (/菜|瓜|豆|笋|椒|葱|蒜|姜|番茄|土豆|萝卜|藕|芹|白菜|菠菜/.test(name)) return "vegetable";
-  if (/果|苹果|梨|橙|柑|香蕉|桃|莓|葡萄|芒果|西瓜|柚/.test(name)) return "fruit";
+  if (/菜|瓜|豆|笋|椒|葱|蒜|姜|番茄|土豆|萝卜|藕|芹|白菜|菠菜|西兰花|花菜|菜花|芦笋/.test(name)) return "vegetable";
+  if (/果|苹果|梨|橙|柑|香蕉|桃|莓|葡萄|芒果|西瓜|柚|阳光玫瑰|提子/.test(name)) return "fruit";
   if (/大米|米饭|面粉|燕麦|小麦|玉米|杂粮|米$/.test(name)) return "grain";
   if (/水|饮料|果汁|茶|咖啡|酒|可乐/.test(name)) return "drink";
   if (/食用油|花生油|菜籽油|橄榄油|香油/.test(name)) return "oil";
@@ -779,6 +785,7 @@ function storeBrandKey(name: string) {
   if (name.startsWith("盒马")) return "hema";
   if (name.startsWith("条马") || name.startsWith("条码")) return "tiaoma";
   if (name.startsWith("新世纪") || name.startsWith("重百新世纪")) return "xinshiji";
+  if (/超市|商超|便利店/.test(name)) return "supermarket";
   if (/菜市场|农贸市场/.test(name)) return "market";
   if (/路边摊|流动摊|摊位/.test(name)) return "stall";
   if (name.startsWith("客百年")) return "kebainian";

@@ -81,7 +81,23 @@ export type Family = {
 };
 export type FamilySession = { token: string; joinCode?: string; family: Family };
 export type IdentityStatus = { exists: boolean; phone: string; verificationRequired: boolean };
-export type FamilyBackup = { formatVersion: number; exportedAt: string; family: unknown };
+export type FamilyBackup = {
+  formatVersion: number;
+  exportedAt: string;
+  family: {
+    id: string;
+    name: string;
+    revision: number;
+    joinCodeHash?: string;
+    members: Record<string, { tokenHash?: string; [key: string]: unknown }>;
+    activeWeek: { checkins: unknown; [key: string]: unknown };
+    weeklyArchives: unknown[];
+    products: unknown[];
+    priceStores: unknown[];
+    priceRecords: unknown[];
+    [key: string]: unknown;
+  };
+};
 
 export type PriceUnit = "gram" | "kilogram" | "jin" | "milliliter" | "liter" | "piece" | "box" | "bottle";
 export type NormalizedPriceUnit = "jin" | "liter" | "piece" | "box" | "bottle";

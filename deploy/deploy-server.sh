@@ -2,15 +2,25 @@
 
 set -euo pipefail
 
+machine_architecture=$(uname -m)
+case "${machine_architecture}" in
+  x86_64) binary_architecture=amd64 ;;
+  aarch64|arm64) binary_architecture=arm64 ;;
+  *)
+    echo "unsupported server architecture: ${machine_architecture}" >&2
+    exit 1
+    ;;
+esac
+
 repository_directory=/data/early-sleep-family-app
-binary_path=${repository_directory}/dist/server/early-sleep-server-linux-arm64
+binary_path=${repository_directory}/dist/server/early-sleep-server-linux-${binary_architecture}
 data_directory=${repository_directory}/data
 update_directory=${repository_directory}/updates
 listen_address=:31080
 health_url=http://127.0.0.1:31080/ping
 runtime_directory=${repository_directory}/.deploy-runtime
 pid_file=${runtime_directory}/early-sleep-server.pid
-last_good_binary=${runtime_directory}/early-sleep-server-linux-arm64.last-good
+last_good_binary=${runtime_directory}/early-sleep-server-linux-${binary_architecture}.last-good
 
 cd "${repository_directory}"
 mkdir -p "${runtime_directory}" "${update_directory}/web" "${update_directory}/android"

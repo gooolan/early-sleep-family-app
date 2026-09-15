@@ -72,7 +72,7 @@ function emptyDraft(productName = "", unit: PriceUnit = "jin"): PriceDraft {
 }
 
 export function PriceView({ client, family }: { client: APIClient; family: Family }) {
-  const [catalog, setCatalog] = useState<PriceCatalog | null>(() => priceCatalogCache.get(client) ?? null);
+  const [catalog, setCatalog] = useState<PriceCatalog | null>(() => priceCatalogCache.get(client) ?? client.cachedPrices(family.id));
   const [screen, setScreen] = useState<PriceScreen>({ name: "home" });
   const [loading, setLoading] = useState(() => !priceCatalogCache.has(client));
   const [error, setError] = useState("");
@@ -81,7 +81,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
 
   useEffect(() => {
     let current = true;
-    const cached = priceCatalogCache.get(client);
+    const cached = priceCatalogCache.get(client) ?? client.cachedPrices(family.id);
     setCatalog(cached ?? null);
     setLoading(!cached);
     setError("");
@@ -93,7 +93,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
       if (current) setLoading(false);
     });
     return () => { current = false; };
-  }, [client]);
+  }, [client, family.id]);
 
   function acceptCatalog(next: PriceCatalog) {
     priceCatalogCache.set(client, next);

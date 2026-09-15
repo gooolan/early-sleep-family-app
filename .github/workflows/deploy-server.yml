@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - dist/server/early-sleep-server-linux-amd64
       - dist/server/early-sleep-server-linux-arm64
       - updates/**
   workflow_dispatch:

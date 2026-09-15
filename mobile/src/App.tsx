@@ -3,6 +3,11 @@ import { Capacitor } from "@capacitor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { APIClient, APIError } from "./api";
 import { PriceView } from "./PriceView";
+import { LocalBackupPanel } from "./LocalBackupPanel";
+import { downloadJSON } from "./download";
+import { ServerAddressForm } from "./ServerAddressForm";
+import { configuredBackend } from "./config";
+import { preserveLegacyCache, publishBackupStatus, saveBackup } from "./backup";
 import type { Archive, DayResult, Family, FamilyBackup, Member, PendingChange, PendingExemption, RuleTier, Settings, WeekSummary } from "./types";
 import { requestLiveUpdateCheck } from "./updater";
 
@@ -19,7 +24,6 @@ const storage = {
   family: "earlySleep.family.v1",
 };
 
-const configuredBackend = import.meta.env.VITE_API_BASE_URL ?? "";
 
 type FamilyCache = {
   version: 1;
@@ -45,7 +49,6 @@ function readCachedFamily(backendURL: string): Family | null {
     ) return null;
     return cached.family;
   } catch {
-    localStorage.removeItem(storage.family);
     return null;
   }
 }
@@ -57,6 +60,7 @@ function writeCachedFamily(backendURL: string, family: Family) {
     family,
   };
   try {
+    preserveLegacyCache();
     localStorage.setItem(storage.family, JSON.stringify(cached));
   } catch {
     // The server remains the source of truth if the WebView storage quota is full.
@@ -202,7 +206,6 @@ export default function App() {
     localStorage.removeItem(storage.token);
     localStorage.removeItem(storage.phone);
     localStorage.removeItem(storage.joinCode);
-    localStorage.removeItem(storage.family);
     setToken("");
     setJoinCode("");
     setFamily(null);
@@ -237,15 +240,13 @@ export default function App() {
     setError("");
     try {
       const backup = await client.exportFamily();
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `early-sleep-${family?.id ?? "family"}-${localToday()}.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      try {
+        saveBackup(backendURL, backup);
+        publishBackupStatus(backendURL, "");
+      } catch (reason) {
+        publishBackupStatus(backendURL, `本地备份未更新：${messageOf(reason)}`);
+      }
+      await downloadJSON(backup, `early-sleep-${family?.id ?? "family"}-${localToday()}.json`);
       setNotice("家庭备份已导出，请妥善保存");
       window.setTimeout(() => setNotice(""), 2200);
     } catch (reason) {
@@ -334,6 +335,8 @@ function Startup({ backendURL, loading, error, onRetry, onReset }: { backendURL:
           <small>{backendURL || "尚未配置后端地址"}</small>
           <button className="primary wide" disabled={loading} onClick={onRetry}>{loading ? "正在重试…" : "重新连接"}</button>
           <button className="startup-reset" disabled={loading} onClick={onReset}>返回登录与服务器设置</button>
+          <ServerAddressForm backendURL={backendURL} />
+          <LocalBackupPanel backendURL={backendURL} />
         </div>
       )}
     </div>
@@ -456,6 +459,7 @@ function Setup(props: {
           </>
         )}
       </section>
+      <LocalBackupPanel backendURL={props.backendURL} />
       <p className="footnote">推荐规则创建后仍可修改；修改会重算本周，历史周不受影响。</p>
     </div>
   );
@@ -812,11 +816,11 @@ function SettingsView({ family, backendURL, joinCode, loading, section, onSectio
   }
 
   if (section === "backup") {
-    return <DataBackupView family={family} owner={owner} loading={loading} onExport={onExport} onRestore={onRestore} onBack={() => onSectionChange("root")} />;
+    return <DataBackupView backendURL={backendURL} family={family} owner={owner} loading={loading} onExport={onExport} onRestore={onRestore} onBack={() => onSectionChange("root")} />;
   }
 
   const review = family.rewardReview;
-  return <div className="page-stack"><section className="card info-card"><span className="eyebrow">FAMILY</span><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl><button className="profile-edit" onClick={() => onSectionChange("profile")}>修改个人信息 ›</button></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">30-DAY REVIEW</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => onSectionChange("review")}>查看数据 ›</button></section><section className="card settings-menu"><span className="eyebrow">RULES & GUIDE</span><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p>{!owner && <button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>积分规则</b><small>查看本周理想时间、积分与罚金档位</small></span><em>›</em></button>}<button onClick={() => onSectionChange("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => onSectionChange("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><span className="eyebrow">DATA</span><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => onSectionChange("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><span className="eyebrow">OWNER SETTINGS</span><h2>创建者设置</h2><p className="muted">修改积分档位只影响当前活动周。</p><button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>编辑积分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<button className="exit-button" onClick={onExit}>退出此家庭（仅清除本机凭证）</button></div>;
+  return <div className="page-stack"><section className="card info-card"><span className="eyebrow">FAMILY</span><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl><button className="profile-edit" onClick={() => onSectionChange("profile")}>修改个人信息 ›</button></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">30-DAY REVIEW</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => onSectionChange("review")}>查看数据 ›</button></section><section className="card settings-menu"><span className="eyebrow">RULES & GUIDE</span><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p>{!owner && <button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>积分规则</b><small>查看本周理想时间、积分与罚金档位</small></span><em>›</em></button>}<button onClick={() => onSectionChange("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => onSectionChange("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><span className="eyebrow">DATA</span><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => onSectionChange("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><span className="eyebrow">OWNER SETTINGS</span><h2>创建者设置</h2><p className="muted">修改积分档位只影响当前活动周。</p><button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>编辑积分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<ServerAddressForm backendURL={backendURL} /><button className="exit-button" onClick={onExit}>退出此家庭（保留本机备份）</button></div>;
 }
 
 function ProfileView({ member, loading, onSave, onBack }: { member: Member; loading: boolean; onSave: (name: string) => void; onBack: () => void }) {
@@ -837,7 +841,7 @@ function ProfileView({ member, loading, onSave, onBack }: { member: Member; load
   return <div className="page-stack"><SettingsBack eyebrow="MY PROFILE" title="个人信息" onBack={onBack} /><section className="card profile-card"><div className="profile-avatar" aria-hidden="true">{(name.trim() || member.name).slice(0, 1)}</div><form className="profile-form" onSubmit={submit}><label>称呼<input autoComplete="nickname" maxLength={20} value={name} onChange={(event) => setName(event.target.value)} placeholder="请输入你的称呼" /></label><label>手机号 ID<input className="readonly-field" value={member.phone ?? ""} readOnly /></label><small>手机号用于恢复身份，当前不可直接修改；头像会跟随称呼首字更新。</small>{profileError && <div className="inline-error">{profileError}</div>}<button className="primary wide" disabled={loading || name.trim() === member.name} type="submit">保存个人信息</button></form></section></div>;
 }
 
-function DataBackupView({ family, owner, loading, onExport, onRestore, onBack }: { family: Family; owner: boolean; loading: boolean; onExport: () => Promise<void>; onRestore: (backup: FamilyBackup) => void; onBack: () => void }) {
+function DataBackupView({ backendURL, family, owner, loading, onExport, onRestore, onBack }: { backendURL: string; family: Family; owner: boolean; loading: boolean; onExport: () => Promise<void>; onRestore: (backup: FamilyBackup) => void; onBack: () => void }) {
   const [backupError, setBackupError] = useState("");
 
   async function selectBackup(event: React.ChangeEvent<HTMLInputElement>) {
@@ -855,7 +859,7 @@ function DataBackupView({ family, owner, loading, onExport, onRestore, onBack }:
     }
   }
 
-  return <div className="page-stack"><SettingsBack eyebrow="DATA BACKUP" title="导出与恢复" onBack={onBack} /><section className="card backup-card"><div className="backup-block"><BackupIcon kind="download" /><div><h3>导出家庭备份</h3><p>包含计分规则、打卡、豁免、周报和复盘周期，不包含可直接登录的成员令牌。</p></div><button className="primary" disabled={loading} onClick={() => void onExport()}>导出 JSON</button></div><div className="backup-warning">备份包含手机号和家庭记录，请存放在可信位置，不要发送给无关人员。</div></section><section className="card backup-card"><div className="backup-block"><BackupIcon kind="restore" /><div><h3>从备份恢复</h3><p>{owner ? "仅支持恢复同一个家庭、相同成员组成的备份；当前登录凭证会保留。" : "只有家庭创建者可以执行恢复。"}</p></div>{owner && <label className="restore-file"><input type="file" accept="application/json,.json" disabled={loading} onChange={(event) => void selectBackup(event)} /><span>选择备份文件</span></label>}</div>{backupError && <div className="inline-error">{backupError}</div>}<small>当前家庭：{family.name} · {family.id}</small></section></div>;
+  return <div className="page-stack"><SettingsBack eyebrow="DATA BACKUP" title="导出与恢复" onBack={onBack} /><LocalBackupPanel backendURL={backendURL} familyID={family.id} /><section className="card backup-card"><div className="backup-block"><BackupIcon kind="download" /><div><h3>从服务器导出最新备份</h3><p>需要联网。包含计分规则、打卡、豁免、周报、复盘周期、菜价和店铺，不包含登录令牌。</p></div><button className="primary" disabled={loading} onClick={() => void onExport()}>导出 JSON</button></div><div className="backup-warning">备份包含手机号和家庭记录，请存放在可信位置，不要发送给无关人员。</div></section><section className="card backup-card"><div className="backup-block"><BackupIcon kind="restore" /><div><h3>从备份恢复</h3><p>{owner ? "仅支持恢复同一个家庭、相同成员组成的备份；当前登录凭证会保留。" : "只有家庭创建者可以执行恢复。"}</p></div>{owner && <label className="restore-file"><input type="file" accept="application/json,.json" disabled={loading} onChange={(event) => void selectBackup(event)} /><span>选择备份文件</span></label>}</div>{backupError && <div className="inline-error">{backupError}</div>}<small>当前家庭：{family.name} · {family.id}</small></section></div>;
 }
 
 function BackupIcon({ kind }: { kind: "download" | "restore" }) {

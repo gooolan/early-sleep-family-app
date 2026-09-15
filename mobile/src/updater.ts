@@ -1,6 +1,7 @@
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { CapacitorUpdater } from "@capgo/capacitor-updater";
+import { configuredBackend } from "./config";
 
 const backendStorageKey = "earlySleep.backend";
 const pendingVersionStorageKey = "earlySleep.update.pendingVersion";
@@ -161,7 +162,7 @@ async function fetchUpdateManifest(backendURL: string): Promise<UpdateManifest |
 }
 
 function configuredBackendURL() {
-  const value = (localStorage.getItem(backendStorageKey) ?? import.meta.env.VITE_API_BASE_URL ?? "").trim();
+  const value = (localStorage.getItem(backendStorageKey) ?? configuredBackend).trim();
   if (!value) return "";
 
   try {

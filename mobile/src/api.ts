@@ -1,4 +1,5 @@
 import type { Family, FamilyBackup, FamilySession, IdentityStatus, PriceCatalog, SavePriceRecordInput, Settings } from "./types";
+import { listBackups, publishBackupStatus, saveBackup } from "./backup";
 
 export class APIError extends Error {
   code: string;
@@ -12,7 +13,29 @@ export class APIError extends Error {
 type Envelope<T> = { data: T };
 
 export class APIClient {
+  private backupTask: Promise<void> | null = null;
+  private backupAgain = false;
+
   constructor(private baseURL: string, private token = "") {}
+
+  private syncBackup() {
+    if (this.backupTask) { this.backupAgain = true; return; }
+    this.backupTask = (async () => {
+      do {
+        this.backupAgain = false;
+        try {
+          const backup = await this.exportFamily();
+          saveBackup(this.baseURL, backup);
+          publishBackupStatus(this.baseURL, "");
+        } catch (error) {
+          const message = error instanceof DOMException && error.name === "QuotaExceededError"
+            ? "本地空间不足，完整备份未更新；请先导出现有备份"
+            : `完整备份未更新，旧备份已保留：${error instanceof Error ? error.message : "存储不可用"}`;
+          publishBackupStatus(this.baseURL, message);
+        }
+      } while (this.backupAgain);
+    })().finally(() => { this.backupTask = null; });
+  }
 
   setToken(token: string) {
     this.token = token;
@@ -122,6 +145,13 @@ export class APIClient {
     return this.data<PriceCatalog>("/api/v1/prices");
   }
 
+  cachedPrices(familyID: string): PriceCatalog | null {
+    try {
+      const family = listBackups().find((item) => item.backendURL === this.baseURL.replace(/\/$/, "") && item.latest.family.id === familyID)?.latest.family;
+      return family ? { products: family.products, stores: family.priceStores, records: family.priceRecords } as PriceCatalog : null;
+    } catch { return null; }
+  }
+
   async createProduct(name: string, iconKey = ""): Promise<PriceCatalog> {
     return this.data<PriceCatalog>("/api/v1/price-products", {
       method: "POST",
@@ -167,6 +197,7 @@ export class APIClient {
 
   private async data<T>(path: string, options?: RequestInit): Promise<T> {
     const result = await this.request<Envelope<T>>(path, options);
+    if (this.token && path !== "/api/v1/family/export") this.syncBackup();
     return result.data;
   }
 
@@ -175,10 +206,14 @@ export class APIClient {
     headers.set("Content-Type", "application/json");
     if (this.token) headers.set("Authorization", `Bearer ${this.token}`);
     let response: Response;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      response = await fetch(`${this.baseURL.replace(/\/$/, "")}${path}`, { ...options, headers });
+      response = await fetch(`${this.baseURL.replace(/\/$/, "")}${path}`, { ...options, headers, signal: controller.signal });
     } catch {
       throw new APIError("network_error", "无法连接后端，请检查地址和网络");
+    } finally {
+      clearTimeout(timeout);
     }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {

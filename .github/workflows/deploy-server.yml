@@ -5,6 +5,8 @@ on:
     branches:
       - main
     paths:
+      - .github/workflows/deploy-server.yml
+      - deploy/deploy-server.sh
       - dist/server/early-sleep-server-linux-amd64
       - dist/server/early-sleep-server-linux-arm64
       - updates/**
@@ -60,6 +62,15 @@ jobs:
           chmod 600 "${HOME}/.ssh/deploy_key"
           printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > "${HOME}/.ssh/known_hosts"
           chmod 600 "${HOME}/.ssh/known_hosts"
+          # A port migration can keep the already trusted host key. OpenSSH
+          # requires [host]:port entries for ports other than 22.
+          if [[ "${DEPLOY_SSH_PORT}" != 22 ]] && ! ssh-keygen -F "[${DEPLOY_SSH_HOST}]:${DEPLOY_SSH_PORT}" -f "${HOME}/.ssh/known_hosts" >/dev/null; then
+            matching_keys=$(ssh-keygen -F "${DEPLOY_SSH_HOST}" -f "${HOME}/.ssh/known_hosts") || {
+              echo "DEPLOY_SSH_KNOWN_HOSTS has no trusted key for the deployment host; update the production secret" >&2
+              exit 1
+            }
+            printf '%s\n' "${matching_keys}" | awk -v target="[${DEPLOY_SSH_HOST}]:${DEPLOY_SSH_PORT}" '$1 !~ /^#/ && $1 !~ /^@/ { $1 = target; print }' >> "${HOME}/.ssh/known_hosts"
+          fi
 
       - name: Pull code and restart API
         shell: bash

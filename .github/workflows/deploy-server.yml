@@ -83,3 +83,15 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
             'bash -s' < deploy/deploy-server.sh
+
+      - name: Verify published update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 15 \
+            "http://${DEPLOY_SSH_HOST}:31080/ping"
+          curl --fail --silent --show-error --retry 3 --max-time 15 \
+            "http://${DEPLOY_SSH_HOST}:31080/updates/manifest.json" \
+            -o "${RUNNER_TEMP}/early-sleep-manifest.json"
+          cmp updates/manifest.json "${RUNNER_TEMP}/early-sleep-manifest.json"
+          echo "Published update manifest matches this deployment"

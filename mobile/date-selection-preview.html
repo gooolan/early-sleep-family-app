@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>首页同款周历 · 选中效果</title>
+<style>
+:root { font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif; color: #253752; background: #edf2f8; font-variant-numeric: tabular-nums; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1160px; margin: auto; padding: 30px 24px; }
+h1 { font-size: 25px; margin: 0 0 9px; font-weight: 650; }
+.intro { font-size: 13px; color: #63738b; line-height: 1.8; margin: 0; }
+.reference { max-width: 430px; margin: 18px 0 22px; padding: 14px 18px; border: 1px solid #dce4ef; border-radius: 16px; background: #fff; }
+.reference h2 { font-size: 12px; color: #63738b; font-weight: 500; margin-bottom: 12px; }
+.grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.option { border: 1px solid #dce4ef; border-radius: 20px; background: #fff; padding: 18px 14px; overflow: hidden; }
+h2 { font-size: 17px; margin: 0; font-weight: 600; }
+.description { color: #63738b; font-size: 12px; line-height: 1.7; margin: 8px 0 18px; min-height: 41px; }
+.example { background: #edf2f8; border-radius: 13px; padding: 15px 6px 12px; }
+.example + .example { margin-top: 12px; }
+.state-label { font-size: 11px; color: #63738b; margin: 0 6px 11px; }
+.week { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 2px; }
+button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible { outline: 2px solid #486aa2; outline-offset: 3px; }
+.day { display: grid; justify-items: center; gap: 9px; position: relative; min-width: 0; padding: 10px 0; color: #63738b; border: 0; background: transparent; border-radius: 12px; }
+.weekday { font-size: 11px; line-height: 18px; }
+.icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px dashed #d4dfed; border-radius: 50%; background: #f8fafd; color: #92a9c5; }
+.icon svg { width: 15px; height: 15px; }
+.date { font-size: 10px; line-height: 20px; padding: 0 5px; min-width: 24px; border-radius: 6px; }
+.completed .icon { color: white; background: #486aa2; border: 1px solid #486aa2; box-shadow: 0 0 0 3px #edf2fa; }
+.completed .weekday, .completed .date { color: #486aa2; font-weight: 600; }
+.day[aria-pressed="true"] .weekday, .day[aria-pressed="true"] .date { color: #263b61; font-weight: 700; }
+/* 1: selection is a surface; record status stays unchanged. */
+.soft .day[aria-pressed="true"] { background: #e0e9f6; border-radius: 10px; }
+.soft .day[aria-pressed="true"] .icon { border-color: #7693bd; color: #365c93; background: #f8fafd; }
+.soft .completed[aria-pressed="true"] .icon { background: #486aa2; border-color: #486aa2; color: white; box-shadow: none; }
+/* 2: stronger color only; every selected icon becomes dark blue. */
+.ink .day[aria-pressed="true"] .icon { background: #263b61; border: 1px solid #263b61; color: #fff; box-shadow: none; }
+.ink .day[aria-pressed="true"] svg { stroke-width: 2; }
+.ink .day[aria-pressed="true"] .weekday { color: #263b61; }
+/* 3: preserve every status icon; highlight the selected date independently. */
+.label .day[aria-pressed="true"] .date { color: white; background: #486aa2; }
+.label .day[aria-pressed="true"] .weekday { color: #365c93; }
+footer { font-size: 12px; color: #63738b; line-height: 1.8; margin-top: 18px; }
+a { color: #486aa2; text-decoration: none; }
+@media(max-width:980px) { .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:650px) { main { padding: 24px 16px; } .grid { grid-template-columns: minmax(0,1fr); } .description { min-height: 0; } .reference { max-width: none; } }
+@media(max-width:360px) { main { padding-inline: 12px; } h1 { font-size: 22px; } .option { padding-inline: 10px; } .icon { width: 29px; height: 29px; } .example { padding-inline: 3px; } }
+</style>
+</head>
+<body>
+<main>
+<header><h1>保留首页周历，只看选中效果</h1><p class="intro">星期在上、图标居中、日期在下。每个方案都同时展示未打卡与已打卡的选中效果，点击也可以切换。</p></header>
+<section class="reference"><h2>默认样式 · 与首页一致</h2><div class="week" data-selected="" role="group" aria-label="首页默认周历"></div></section>
+<div class="grid">
+<section class="option soft"><h2>1 · 浅蓝底托住整天（已采用）</h2><p class="description">无边框、无外圈，整列浅蓝色让选中位置更明确。</p><div class="example"><p class="state-label">选中未打卡 · 15 日</p><div class="week" data-selected="15" role="group" aria-label="方案 1 选中未打卡"></div></div><div class="example"><p class="state-label">选中已打卡 · 16 日</p><div class="week" data-selected="16" role="group" aria-label="方案 1 选中已打卡"></div></div></section>
+<section class="option ink"><h2>2 · 只强化图标和文字</h2><p class="description">选中的图标变深蓝白线，月亮与勾选仍区分打卡状态。</p><div class="example"><p class="state-label">选中未打卡 · 15 日</p><div class="week" data-selected="15" role="group" aria-label="方案 2 选中未打卡"></div></div><div class="example"><p class="state-label">选中已打卡 · 16 日</p><div class="week" data-selected="16" role="group" aria-label="方案 2 选中已打卡"></div></div></section>
+<section class="option label"><h2>3 · 只突出底部日期</h2><p class="description">图标完全保持首页原样，让日期的蓝底白字表示选中。</p><div class="example"><p class="state-label">选中未打卡 · 15 日</p><div class="week" data-selected="15" role="group" aria-label="方案 3 选中未打卡"></div></div><div class="example"><p class="state-label">选中已打卡 · 16 日</p><div class="week" data-selected="16" role="group" aria-label="方案 3 选中已打卡"></div></div></section>
+</div>
+<footer>方案 1 已应用到早睡页，底色调淡、圆角收小。<br><a href="/#/sleep/records">返回早睡页 →</a></footer>
+</main>
+<script>
+const moon='M20.5 13.2A8.7 8.7 0 0 1 10.8 3.5 8.8 8.8 0 1 0 20.5 13.2Z';
+const check='M8 4H6a2 2 0 0 0-2 2v14h16V6a2 2 0 0 0-2-2h-2M9 3h6v4H9zM8 13l3 3 5-6';
+const weekdays=['周日','周一','周二','周三','周四','周五','周六'];
+for(const group of document.querySelectorAll('.week')) {
+  for(let index=0;index<7;index++) {
+    const day=index+13,completed=day===16;
+    const interactive=group.dataset.selected!=='';
+    const item=document.createElement(interactive?'button':'div');
+    item.className=`day${completed?' completed':''}`;
+    item.dataset.day=String(day);
+    item.setAttribute('aria-label',`${day} 日，${completed?'已打卡':'未打卡'}`);
+    if(interactive)item.setAttribute('aria-pressed',String(group.dataset.selected===String(day)));
+    item.innerHTML=`<span class="weekday">${weekdays[index]}</span><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${completed?check:moon}" /></svg></span><span class="date">${day}</span>`;
+    group.append(item);
+  }
+}
+document.addEventListener('click',event=>{
+  const button=event.target.closest('button[data-day]');if(!button)return;
+  const group=button.closest('.week');
+  for(const item of group.querySelectorAll('button'))item.setAttribute('aria-pressed',String(item===button));
+  group.previousElementSibling.textContent=`选中${button.dataset.day==='16'?'已打卡':'未打卡'} · ${button.dataset.day} 日`;
+});
+</script>
+</body>
+</html>

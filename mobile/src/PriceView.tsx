@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import type { APIClient } from "./api";
 import { APIError } from "./api";
+import { backTo, navigate, useLocation } from "./navigation";
 import tiaomaLogo from "./assets/tiaoma-logo.svg";
 import { IconfontGlyph, storeIconfontAssets } from "./iconfontAssets";
 import { PriceGlyph } from "./PriceIcons";
@@ -12,8 +13,8 @@ type PriceScreen =
   | { name: "home" }
   | { name: "products" }
   | { name: "history" }
-  | { name: "record"; productId?: string; editId?: string; prefill?: Partial<PriceDraft>; returnTo?: "history" }
-  | { name: "detail"; productId: string }
+  | { name: "record"; productId?: string; editId?: string; prefill?: Partial<PriceDraft>; returnTo?: "history" | "products" | "home" }
+  | { name: "detail"; productId: string; returnTo?: "history" | "products" | "home" }
   | { name: "compare"; productId: string };
 
 type PriceDraft = {
@@ -71,9 +72,40 @@ function emptyDraft(productName = "", unit: PriceUnit = "jin"): PriceDraft {
   };
 }
 
-export function PriceView({ client, family }: { client: APIClient; family: Family }) {
+function pricePath(screen: PriceScreen) {
+  if (screen.name === "home") return "/prices";
+  const params = new URLSearchParams();
+  if ("productId" in screen && screen.productId) params.set("product", screen.productId);
+  if ("returnTo" in screen && screen.returnTo) params.set("from", screen.returnTo);
+  if (screen.name === "record") {
+    if (screen.editId) params.set("edit", screen.editId);
+    if (screen.prefill) params.set("prefill", JSON.stringify(screen.prefill));
+  }
+  return `/prices/${screen.name}${params.size ? `?${params}` : ""}`;
+}
+
+function readPriceScreen(location: string): PriceScreen {
+  const [path, query] = location.split("?");
+  const name = path.split("/")[2];
+  const params = new URLSearchParams(query);
+  const productId = params.get("product") ?? undefined;
+  const from = params.get("from");
+  const returnTo = from === "history" || from === "products" || from === "home" ? from : undefined;
+  if (name === "record") {
+    let prefill: Partial<PriceDraft> | undefined;
+    try { prefill = JSON.parse(params.get("prefill") ?? "null") ?? undefined; } catch { /* Ignore a malformed optional prefill. */ }
+    return { name, productId, editId: params.get("edit") ?? undefined, prefill, returnTo };
+  }
+  if ((name === "detail" || name === "compare") && productId) return { name, productId, ...(name === "detail" ? { returnTo } : {}) };
+  if (name === "history" || name === "products") return { name };
+  return { name: "home" };
+}
+
+export function PriceView({ client, family, storageScope }: { client: APIClient; family: Family; storageScope: string }) {
   const [catalog, setCatalog] = useState<PriceCatalog | null>(() => priceCatalogCache.get(client) ?? client.cachedPrices(family.id));
-  const [screen, setScreen] = useState<PriceScreen>({ name: "home" });
+  const location = useLocation();
+  const screen = useMemo(() => readPriceScreen(location), [location]);
+  const setScreen = (next: PriceScreen) => navigate(pricePath(next));
   const [loading, setLoading] = useState(() => !priceCatalogCache.has(client));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -85,14 +117,18 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     setCatalog(cached ?? null);
     setLoading(!cached);
     setError("");
-    client.prices().then((value) => {
-      if (current) acceptCatalog(value);
-    }).catch((reason) => {
-      if (current) setError(messageOf(reason));
-    }).finally(() => {
-      if (current) setLoading(false);
-    });
-    return () => { current = false; };
+    const refresh = () => {
+      client.prices().then((value) => {
+        if (current) { acceptCatalog(value); setError(""); }
+      }).catch((reason) => {
+        if (current) setError(messageOf(reason));
+      }).finally(() => {
+        if (current) setLoading(false);
+      });
+    };
+    refresh();
+    window.addEventListener("online", refresh);
+    return () => { current = false; window.removeEventListener("online", refresh); };
   }, [client, family.id]);
 
   function acceptCatalog(next: PriceCatalog) {
@@ -100,9 +136,9 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     setCatalog(next);
   }
 
-  function showNotice(message: string) {
+  function showNotice(message: string, duration = 3500) {
     setNotice(message);
-    window.setTimeout(() => setNotice(""), 2600);
+    window.setTimeout(() => setNotice(""), duration);
   }
 
   async function perform(action: () => Promise<PriceCatalog>, success = "") {
@@ -140,7 +176,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
   }
 
   function openProduct(productID: string) {
-    setScreen({ name: "detail", productId: productID });
+    setScreen({ name: "detail", productId: productID, returnTo: screen.name === "history" || screen.name === "products" ? screen.name : undefined });
   }
 
   async function removeRecord(recordID: string) {
@@ -149,7 +185,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     try {
       await perform(() => client.deletePriceRecord(recordID));
       setDeletedRecordID(recordID);
-      showNotice("记录已删除");
+      showNotice("记录已删除", 5000);
       window.setTimeout(() => setDeletedRecordID((current) => current === recordID ? "" : current), 5000);
     } catch {
       // perform already presents the request error.
@@ -185,22 +221,19 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
           onOpen={openProduct}
           onViewAll={() => setScreen({ name: "products" })}
           onHistory={() => setScreen({ name: "history" })}
-          onRecord={(productId) => setScreen({ name: "record", productId })}
-          onAdd={async (name) => {
-            const product = await ensureProduct(name);
-            setScreen({ name: "record", productId: product.id });
-          }}
+          onRecord={(productId) => setScreen({ name: "record", productId, returnTo: "home" })}
+          onAdd={async (name) => setScreen({ name: "record", prefill: { productName: name }, returnTo: "home" })}
         />
       )}
       {screen.name === "products" && (
-        <PriceProducts catalog={visibleCatalog} onBack={() => setScreen({ name: "home" })} onOpen={openProduct} />
+        <PriceProducts catalog={visibleCatalog} onBack={() => backTo("/prices")} onOpen={openProduct} />
       )}
       {screen.name === "history" && (
         <PriceHistory
           catalog={visibleCatalog}
           family={family}
           loading={loading}
-          onBack={() => setScreen({ name: "home" })}
+          onBack={() => backTo("/prices")}
           onOpen={openProduct}
           onEdit={(record) => setScreen({ name: "record", productId: record.productId, editId: record.id, returnTo: "history" })}
           onDelete={(recordID) => void removeRecord(recordID)}
@@ -213,14 +246,16 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
           }}
         />
       )}
-      {screen.name === "record" && (
+      {screen.name === "record" && catalog && (!screen.editId || catalog.records.some((record) => record.id === screen.editId)) && (
         <PriceEditor
+          key={`${screen.editId ?? screen.productId ?? "new"}:${JSON.stringify(screen.prefill ?? {})}`}
+          draftKey={`earlySleep.priceDraft:${storageScope}:${screen.editId ?? screen.productId ?? "new"}${screen.prefill ? `:${JSON.stringify(screen.prefill)}` : ""}`}
           catalog={visibleCatalog}
           productId={screen.productId}
           editRecord={screen.editId ? visibleCatalog.records.find((record) => record.id === screen.editId) : undefined}
           prefill={screen.prefill}
           loading={loading}
-          onBack={() => screen.returnTo === "history" ? setScreen({ name: "history" }) : screen.productId ? openProduct(screen.productId) : setScreen({ name: "home" })}
+          onBack={() => backTo(screen.returnTo ? pricePath({ name: screen.returnTo }) : screen.productId ? pricePath({ name: "detail", productId: screen.productId }) : "/prices")}
           ensureProduct={ensureProduct}
           ensureStore={ensureStore}
           onSave={async (input, editID) => {
@@ -231,16 +266,18 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
             return next;
           }}
           onUndo={(recordID) => perform(() => client.deletePriceRecord(recordID), "已撤销上一条保存")}
-          onDone={(productID) => screen.returnTo === "history" ? setScreen({ name: "history" }) : openProduct(productID)}
+          onDone={(productID) => navigate(pricePath(screen.returnTo === "history" ? { name: "history" } : { name: "detail", productId: productID }), true)}
         />
       )}
+      {screen.name === "record" && !catalog && <div className="price-stack"><SubpageHeader title="记录菜价" eyebrow="正在读取商品与店铺" onBack={() => backTo("/prices")} /><PriceListSkeleton /></div>}
+      {screen.name === "record" && catalog && screen.editId && !catalog.records.some((record) => record.id === screen.editId) && <div className="price-stack"><SubpageHeader title="这条记录已不存在" eyebrow="可以返回历史记录重新选择" onBack={() => backTo("/prices/history")} /></div>}
       {screen.name === "detail" && (
         <ProductDetail
           catalog={visibleCatalog}
           family={family}
           productId={screen.productId}
           loading={loading}
-          onBack={() => setScreen({ name: "home" })}
+          onBack={() => backTo(pricePath({ name: screen.returnTo ?? "home" }))}
           onRecord={() => setScreen({ name: "record", productId: screen.productId })}
           onCompare={() => setScreen({ name: "compare", productId: screen.productId })}
           onEdit={(recordID) => setScreen({ name: "record", productId: screen.productId, editId: recordID })}
@@ -258,7 +295,7 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
         <ComparePrice
           catalog={visibleCatalog}
           productId={screen.productId}
-          onBack={() => openProduct(screen.productId)}
+          onBack={() => backTo(pricePath({ name: "detail", productId: screen.productId }))}
           onRecord={(prefill) => setScreen({ name: "record", productId: screen.productId, prefill })}
         />
       )}
@@ -303,18 +340,18 @@ function PriceHome(props: {
 
   return (
     <div className="price-stack">
-      <PriceHeader title="家庭菜价" subtitle="记住日常好价格，一起把小日子过好。" />
+      <div className="market-intro"><div><h2>买之前，心里有个价</h2><p>查一查家里记过的价格，或记下今天这一笔。</p></div></div><div className="market-actions"><button className="primary" disabled={props.loading || !props.ready} onClick={() => props.onRecord()}>＋ 记一笔菜价</button><button className="secondary" disabled={!props.ready} onClick={props.onHistory}>历史记录</button></div>
       <section className="price-search-card">
-        <div className="search-field"><span aria-hidden="true"><PriceGlyph name="search" /></span><input disabled={!props.ready} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.initialLoading ? "菜价加载中…" : "搜索商品，例如番茄、猪里脊"} /></div>
-        {query.trim() && visible.length === 0 && !exact && <button className="price-add-result" disabled={adding} onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}
-        {query.trim() && visible.length > 0 && <div className="price-search-results">{visible.map((product) => <ProductSearchRow key={product.id} product={product} catalog={catalog} onClick={() => props.onOpen(product.id)} />)}{!exact && <button onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}</div>}
+        <div className="search-field"><span aria-hidden="true"><PriceGlyph name="search" /></span><input aria-label="搜索菜价" disabled={!props.ready} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.initialLoading ? "菜价加载中…" : "搜索商品，例如番茄、猪里脊"} /></div>
+        {query.trim() && visible.length === 0 && !exact && <button className="price-add-result" disabled={adding} onClick={() => void addProduct()}>记录“{query.trim()}”的价格</button>}
+        {query.trim() && visible.length > 0 && <div className="price-search-results">{visible.map((product) => <ProductSearchRow key={product.id} product={product} catalog={catalog} onClick={() => props.onOpen(product.id)} />)}{!exact && <button onClick={() => void addProduct()}>记录“{query.trim()}”的价格</button>}</div>}
       </section>
 
-      <button className="record-price-main" disabled={props.loading || !props.ready} onClick={() => props.onRecord()}><span>＋</span><div><b>记录菜价</b><small>单价、总价都能快速录入</small></div></button>
+
 
       {!query.trim() && <section className="price-section latest-price-section"><div className="price-section-head"><div><h2>最新菜价</h2></div><small>{props.initialLoading ? "正在异步加载" : recordedCount ? `${recordedCount} 种已记录` : "等待第一条价格"}</small></div>{props.initialLoading ? <PriceListSkeleton /> : homeProducts.length ? <><div className="latest-product-list">{homeProducts.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => props.onOpen(product.id)} />)}</div>{productsWithLatest.length > homeLatestLimit && <button className="price-view-all" onClick={props.onViewAll}>查看全部 {productsWithLatest.length} 种菜价 <span aria-hidden="true">›</span></button>}</> : <div className="price-empty compact">还没有商品。点击“记录菜价”添加第一种菜。</div>}</section>}
 
-      <button className="price-history-entry" disabled={!props.ready} onClick={props.onHistory}><span aria-hidden="true">≡</span><div><b>全部历史记录</b><small>{props.initialLoading ? "记录加载中…" : `${catalog.records.length} 条记录 · 可补评级、编辑和删除`}</small></div><em aria-hidden="true">›</em></button>
+
     </div>
   );
 }
@@ -358,6 +395,7 @@ function PriceHistory(props: {
 }
 
 function PriceEditor(props: {
+  draftKey: string;
   catalog: PriceCatalog;
   productId?: string;
   editRecord?: PriceRecord;
@@ -373,9 +411,18 @@ function PriceEditor(props: {
   const initialProduct = props.catalog.products.find((product) => product.id === (props.editRecord?.productId ?? props.productId));
   const initialStore = props.catalog.stores.find((store) => store.id === props.editRecord?.storeId);
   const [draft, setDraft] = useState<PriceDraft>(() => {
+    try {
+      const saved = sessionStorage.getItem(props.draftKey);
+      if (saved) return JSON.parse(saved) as PriceDraft;
+    } catch { /* A fresh form still works when storage is unavailable. */ }
     if (props.editRecord) return recordDraft(props.editRecord, initialProduct?.name ?? "", initialStore?.name ?? "");
     return { ...emptyDraft(initialProduct?.name), ...props.prefill };
   });
+  const [submitting, setSubmitting] = useState(false);
+  const savingRef = useRef(false);
+  const [restored, setRestored] = useState(() => { try { return Boolean(sessionStorage.getItem(props.draftKey)); } catch { return false; } });
+  useEffect(() => { try { sessionStorage.setItem(props.draftKey, JSON.stringify(draft)); } catch { /* Retain the current form in memory. */ } }, [draft, props.draftKey]);
+  function clearDraft() { try { sessionStorage.removeItem(props.draftKey); } catch { /* Storage is optional. */ } }
   const [formError, setFormError] = useState("");
   const [savedCount, setSavedCount] = useState(0);
   const [lastSaved, setLastSaved] = useState<{ id: string; draft: PriceDraft } | null>(null);
@@ -384,6 +431,14 @@ function PriceEditor(props: {
   const purchaseTotal = draft.entryMode === "unit_price" && Number(draft.unitPrice) > 0 && Number(draft.quantity) > 0 ? Number(draft.unitPrice) * Number(draft.quantity) : 0;
 
   async function submit(event: { preventDefault: () => void }, addAnother: boolean) {
+    event.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true; setSubmitting(true);
+    try { await savePrice(event, addAnother); }
+    finally { savingRef.current = false; setSubmitting(false); }
+  }
+
+  async function savePrice(event: { preventDefault: () => void }, addAnother: boolean) {
     event.preventDefault();
     setFormError("");
     if (!draft.productName.trim() || !draft.storeName.trim()) {
@@ -420,6 +475,7 @@ function PriceEditor(props: {
     try {
       const next = await props.onSave(input, props.editRecord?.id);
       const saved = props.editRecord ?? next.records.find((record) => record.productId === product.id && record.storeId === store.id && record.createdAt === next.records.filter((item) => item.productId === product.id && item.storeId === store.id)[0]?.createdAt);
+      clearDraft();
       if (props.editRecord || !addAnother) {
         props.onDone(product.id);
         return;
@@ -427,6 +483,7 @@ function PriceEditor(props: {
       const newest = next.records.filter((record) => record.productId === product.id && record.storeId === store.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? saved;
       setLastSaved(newest ? { id: newest.id, draft } : null);
       setSavedCount((count) => count + 1);
+      setRestored(false);
       setDraft({ ...emptyDraft("", draft.unit), storeName: store.name, purchasedAt: toLocalInput(new Date()) });
       window.setTimeout(() => productInput.current?.focus(), 0);
     } catch (reason) {
@@ -447,37 +504,36 @@ function PriceEditor(props: {
   }
 
   return (
-    <form className="price-stack price-editor" onSubmit={(event) => void submit(event, false)}>
-      <SubpageHeader title={props.editRecord ? "编辑价格记录" : "记录菜价"} eyebrow={savedCount ? `本次已记录 ${savedCount} 项` : "记下今天买到的好价格"} onBack={props.onBack} />
-      {lastSaved && <div className="save-undo">上一项已保存 <button type="button" onClick={() => void undoSaved()}>恢复表单</button></div>}
-      <section className="card price-form-card catalog-card">
-        <div className="price-form-heading"><h3>买了什么，在哪里买</h3><p>选择常用商品和店铺，也可以直接输入。</p></div>
-        <div className="catalog-block">
-          <CatalogInput inputRef={productInput} kind="product" label="商品" placeholder="搜索或添加商品" value={draft.productName} items={props.catalog.products.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, productName: value })} />
-          {commonProducts(props.catalog).length > 0 && <div className="quick-pick"><div className="quick-pick-head"><span>最近使用</span><small>近 30 天</small></div><div className="product-pick-grid">{commonProducts(props.catalog).slice(0, 8).map((product) => <button type="button" key={product.id} className={sameName(draft.productName, product.name) ? "selected" : ""} aria-pressed={sameName(draft.productName, product.name)} onClick={() => setDraft({ ...draft, productName: product.name })}><ProductIcon product={product} compact /><span>{product.name}</span></button>)}</div></div>}
-        </div>
-        <div className="catalog-divider" />
-        <div className="catalog-block">
-          <CatalogInput kind="store" label="店铺" placeholder="搜索店铺，也可以输入分店名" value={draft.storeName} items={props.catalog.stores.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, storeName: value })} />
-          <div className="quick-pick"><div className="quick-pick-head"><span>常用店铺</span><small>可直接选择</small></div><div className="store-pick-grid">{storeChipOptions(props.catalog).map((store) => <button type="button" key={store.id} className={sameName(draft.storeName, store.name) ? "selected" : ""} aria-pressed={sameName(draft.storeName, store.name)} onClick={() => setDraft({ ...draft, storeName: store.name })}><StoreIcon store={store} compact /><span>{store.name}</span></button>)}</div></div>
-        </div>
-      </section>
-
-      <section className="card price-form-card">
-        <div className="price-form-heading"><h3>这次花了多少</h3><p>按标签单价或实际支付总价填写，自动换算。</p></div>
-        <Segmented value={draft.entryMode} options={[{ value: "unit_price", label: "按单价" }, { value: "total_price", label: "按总价" }]} onChange={(value) => setDraft({ ...draft, entryMode: value as PriceDraft["entryMode"] })} />
-        {draft.entryMode === "unit_price" ? <div className="unit-price-fields"><div className="price-number-row"><label>单价<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} /></label><UnitSelect value={draft.unit} prefix="元 /" onChange={(unit) => setDraft({ ...draft, unit, referenceUnit: unit })} /></div><label>购买数量（选填）<span className="quantity-input"><input inputMode="decimal" type="number" min="0" step="0.001" placeholder="不知道可留空" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /><em>{unitLabel(draft.unit)}</em></span></label></div> : <div className="price-total-grid"><label>总价（元）<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" value={draft.totalPrice} onChange={(event) => setDraft({ ...draft, totalPrice: event.target.value })} /></label><label>数量<input inputMode="decimal" type="number" min="0" step="0.001" placeholder="0" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /></label><UnitSelect value={draft.unit} onChange={(unit) => setDraft({ ...draft, unit, referenceUnit: unit })} /></div>}
-        <div className={`normalized-preview ${normalized ? "ready" : ""}`}><div><span>统一单价</span>{purchaseTotal > 0 && <small>本次合计 {formatMoney(purchaseTotal)} 元</small>}</div><strong>{normalized ? `${formatMoney(normalized.price)} 元 / ${normalizedLabels[normalized.unit]}` : "填写后自动换算"}</strong></div>
-      </section>
-
-      <section className="card price-form-card">
-        <div className="price-form-heading"><h3>补充购买信息</h3></div>
-        <Segmented value={draft.priceKind} options={[{ value: "regular", label: "日常价" }, { value: "discount", label: "优惠价" }]} onChange={(value) => setDraft({ ...draft, priceKind: value as PriceDraft["priceKind"], referencePrice: value === "regular" ? "" : draft.referencePrice })} />
-        {draft.priceKind === "discount" && <div className="reference-row"><label>原价（选填）<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="不知道可留空" value={draft.referencePrice} onChange={(event) => setDraft({ ...draft, referencePrice: event.target.value })} /></label><UnitSelect value={draft.referenceUnit} prefix="元 /" onChange={(referenceUnit) => setDraft({ ...draft, referenceUnit })} /></div>}
-        <label>购买时间<input type="datetime-local" value={draft.purchasedAt} onChange={(event) => setDraft({ ...draft, purchasedAt: event.target.value })} /></label>
-      </section>
-      {formError && <div className="inline-error">{formError}</div>}
-      <div className="price-actions"><button type="submit" className="primary" disabled={props.loading}>保存</button>{!props.editRecord && <button type="button" className="secondary" disabled={props.loading} onClick={(event) => void submit(event, true)}>保存并新增</button>}</div>
+    <form className="price-stack price-editor compact-price-editor" onSubmit={(event) => void submit(event, false)}>
+      <fieldset className="entry-fieldset" disabled={submitting}>
+        <SubpageHeader title={props.editRecord ? "编辑价格记录" : "记一笔菜价"} eyebrow={savedCount ? `本次已记录 ${savedCount} 项` : "商品、店铺、价格，一次填好"} onBack={() => { if (!submitting) props.onBack(); }} />
+        {restored && <div className="draft-notice" role="status">已恢复未保存的内容<button type="button" onClick={() => { clearDraft(); setDraft(props.editRecord ? recordDraft(props.editRecord, initialProduct?.name ?? "", initialStore?.name ?? "") : { ...emptyDraft(initialProduct?.name), ...props.prefill }); setRestored(false); }}>重新填写</button></div>}
+        {lastSaved && <div className="save-undo">上一项已保存 <button type="button" onClick={() => void undoSaved()}>撤销上一笔并恢复</button></div>}
+        <section className="card quick-entry-card">
+          <div className="quick-entry-field">
+            <CatalogInput inputRef={productInput} kind="product" label="商品" placeholder="输入或选择商品" value={draft.productName} items={props.catalog.products.map((item) => item.name)} onChange={(productName) => setDraft({ ...draft, productName })} />
+            {commonProducts(props.catalog).length > 0 && <div className="quick-entry-chips" aria-label="常用商品">{commonProducts(props.catalog).slice(0, 4).map((product) => <button type="button" key={product.id} aria-pressed={sameName(draft.productName, product.name)} onClick={() => setDraft({ ...draft, productName: product.name })}>{product.name}</button>)}</div>}
+          </div>
+          <div className="quick-entry-field">
+            <CatalogInput kind="store" label="店铺" placeholder="输入或选择店铺" value={draft.storeName} items={props.catalog.stores.map((item) => item.name)} onChange={(storeName) => setDraft({ ...draft, storeName })} />
+            <div className="quick-entry-chips" aria-label="常用店铺">{storeChipOptions(props.catalog).slice(0, 3).map((store) => <button type="button" key={store.id} aria-pressed={sameName(draft.storeName, store.name)} onClick={() => setDraft({ ...draft, storeName: store.name })}>{store.name}</button>)}</div>
+          </div>
+          <div className="quick-entry-price">
+            <Segmented value={draft.entryMode} options={[{ value: "unit_price", label: "按单价" }, { value: "total_price", label: "按总价" }]} onChange={(value) => setDraft({ ...draft, entryMode: value as PriceDraft["entryMode"] })} />
+            {draft.entryMode === "unit_price" ? <div className="price-number-row"><label>单价<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} /></label><UnitSelect value={draft.unit} prefix="元 /" onChange={(unit) => setDraft({ ...draft, unit, referenceUnit: unit })} /></div> : <div className="price-total-grid"><label>总价（元）<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" value={draft.totalPrice} onChange={(event) => setDraft({ ...draft, totalPrice: event.target.value })} /></label><label>数量<input inputMode="decimal" type="number" min="0" step="0.001" placeholder="0" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /></label><UnitSelect value={draft.unit} onChange={(unit) => setDraft({ ...draft, unit, referenceUnit: unit })} /></div>}
+            {normalized && <div className="quick-price-result" aria-live="polite"><span>折合 <strong>{formatMoney(normalized.price)} 元/{normalizedLabels[normalized.unit]}</strong></span>{purchaseTotal > 0 && <small>合计 {formatMoney(purchaseTotal)} 元</small>}</div>}
+          </div>
+        </section>
+        <details className="card price-form-card optional-purchase" open={draft.priceKind === "discount" || undefined}>
+          <summary>更多信息 <span>购买数量、优惠价、购买时间（选填）</span></summary>
+          {draft.entryMode === "unit_price" && <label>购买数量（选填）<span className="quantity-input"><input inputMode="decimal" type="number" min="0" step="0.001" placeholder="不知道可留空" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /><em>{unitLabel(draft.unit)}</em></span></label>}
+          <Segmented value={draft.priceKind} options={[{ value: "regular", label: "日常价" }, { value: "discount", label: "优惠价" }]} onChange={(value) => setDraft({ ...draft, priceKind: value as PriceDraft["priceKind"], referencePrice: value === "regular" ? "" : draft.referencePrice })} />
+          {draft.priceKind === "discount" && <div className="reference-row"><label>原价（选填）<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="不知道可留空" value={draft.referencePrice} onChange={(event) => setDraft({ ...draft, referencePrice: event.target.value })} /></label><UnitSelect value={draft.referenceUnit} prefix="元 /" onChange={(referenceUnit) => setDraft({ ...draft, referenceUnit })} /></div>}
+          <label>购买时间<input type="datetime-local" value={draft.purchasedAt} onChange={(event) => setDraft({ ...draft, purchasedAt: event.target.value })} /></label>
+        </details>
+        {formError && <div className="inline-error" role="alert">{formError}</div>}
+        <div className="price-actions entry-footer"><button type="submit" className="primary" disabled={props.loading || submitting}>{submitting ? "正在保存…" : props.editRecord ? "保存修改" : "保存这笔菜价"}</button>{!props.editRecord && <button type="button" className="secondary" disabled={props.loading || submitting} onClick={(event) => void submit(event, true)}>保存，再记一笔</button>}</div>
+      </fieldset>
     </form>
   );
 }
@@ -604,12 +660,8 @@ function StarRating({ value, onChange }: { value?: number; onChange: (value: num
   return <div className="star-rating" aria-label="品质星级">{[1, 2, 3, 4, 5].map((star) => <button type="button" key={star} className={(value ?? 0) >= star ? "active" : ""} onClick={() => onChange(star)} aria-label={`${star} 星`}>★</button>)}</div>;
 }
 
-function PriceHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return <div className="price-heading"><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>;
-}
-
 function SubpageHeader({ title, eyebrow, onBack }: { title: string; eyebrow: string; onBack: () => void }) {
-  return <div className="price-subhead"><button onClick={onBack} aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button><div><span>{eyebrow}</span><h2>{title}</h2></div></div>;
+  return <div className="price-subhead"><button type="button" onClick={onBack} aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button><div><span>{eyebrow}</span><h2>{title}</h2></div></div>;
 }
 
 export function ProductIcon({ product, large = false, compact = false }: { product: Product; large?: boolean; compact?: boolean }) {

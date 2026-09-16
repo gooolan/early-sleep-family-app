@@ -5,6 +5,7 @@ import { LiveUpdatePrompt } from "./LiveUpdatePrompt";
 import "./styles.css";
 import "./theme.css";
 import "./settings.css";
+import "./experience.css";
 import { preserveLegacyCache } from "./backup";
 import { initializeLiveUpdates } from "./updater";
 

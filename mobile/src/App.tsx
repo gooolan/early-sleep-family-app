@@ -3,6 +3,12 @@ import { Capacitor } from "@capacitor/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { APIClient, APIError } from "./api";
 import { PriceView } from "./PriceView";
+import { TodayView } from "./TodayView";
+import { AppIcon } from "./AppIcon";
+import { dateRange, formatScore, scoreLevel, weeklyMaximum } from "./scorePresentation";
+import type { ScoreLevel } from "./scorePresentation";
+import { backTo, navigate, useLocation } from "./navigation";
+import { nightDate } from "./interaction";
 import { LocalBackupPanel } from "./LocalBackupPanel";
 import { downloadJSON } from "./download";
 import { ServerAddressForm } from "./ServerAddressForm";
@@ -13,7 +19,7 @@ import type { Archive, DayResult, Family, FamilyBackup, Member, PendingChange, P
 import { requestLiveUpdateCheck } from "./updater";
 
 type Tab = "home" | "records" | "prices" | "archives" | "settings";
-type SettingsSection = "root" | "profile" | "score" | "reward" | "levels" | "review" | "backup";
+type SettingsSection = "root" | "profile" | "score" | "reward" | "levels" | "review" | "backup" | "connection";
 type SetupMode = "create" | "join";
 type SyncState = "syncing" | "synced" | "offline";
 
@@ -116,10 +122,14 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem(storage.token) ?? "");
   const [joinCode, setJoinCode] = useState(localStorage.getItem(storage.joinCode) ?? "");
   const [family, setFamily] = useState<Family | null>(() => token ? readCachedFamily(backendURL) : null);
-  const [tab, setTab] = useState<Tab>("home");
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("root");
-  const tabRef = useRef(tab);
-  const settingsSectionRef = useRef(settingsSection);
+  const location = useLocation();
+  const [path, query = ""] = location.split("?");
+  const params = new URLSearchParams(query);
+  const tab: Tab = path.startsWith("/prices") ? "prices" : path.startsWith("/family") ? "settings" : path === "/sleep/reports" ? "archives" : path.startsWith("/sleep") ? "records" : "home";
+  const sectionName = path.split("/")[2] as SettingsSection;
+  const settingsSection: SettingsSection = ["profile", "score", "reward", "levels", "review", "backup", "connection"].includes(sectionName) ? sectionName : "root";
+  const setSettingsSection = (section: SettingsSection) => section === "root" ? backTo("/family") : navigate(`/family/${section}`);
+  const actionInFlight = useRef(false);
   const [loading, setLoading] = useState(Boolean(token));
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -127,8 +137,8 @@ export default function App() {
   const [syncState, setSyncState] = useState<SyncState>(token ? "syncing" : "offline");
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const client = useMemo(() => new APIClient(backendURL, token), [backendURL, token]);
-  tabRef.current = tab;
-  settingsSectionRef.current = settingsSection;
+  useEffect(() => { setNotice(""); setError(""); }, [location]);
+
 
   useEffect(() => {
     if (!token) return;
@@ -168,14 +178,12 @@ export default function App() {
   useEffect(() => {
     if (Capacitor.getPlatform() !== "android") return;
     const listener = CapacitorApp.addListener("backButton", ({ canGoBack }) => {
-      if (tabRef.current === "settings" && settingsSectionRef.current !== "root") {
-        setSettingsSection("root");
+      if (document.querySelector('[role="dialog"]')) {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
         return;
       }
-      if (canGoBack) {
-        window.history.back();
-        return;
-      }
+      if (canGoBack) { window.history.back(); return; }
+      if (window.location.hash && window.location.hash !== "#/today") { navigate("/today", true); return; }
       void CapacitorApp.exitApp();
     });
     return () => {
@@ -200,6 +208,7 @@ export default function App() {
     setJoinCode(nextJoinCode);
     acceptFamily(nextFamily);
     setError("");
+    navigate("/today", true);
     void requestLiveUpdateCheck();
   }
 
@@ -210,29 +219,33 @@ export default function App() {
     setToken("");
     setJoinCode("");
     setFamily(null);
-    setSettingsSection("root");
+    navigate("/today", true);
     setLastSyncedAt(null);
     setSyncState("offline");
   }
 
   function changeTab(nextTab: Tab) {
-    setSettingsSection("root");
-    setTab(nextTab);
-    window.scrollTo({ top: 0, behavior: "instant" });
+    const routes: Record<Tab, string> = { home: "/today", records: "/sleep/records", archives: "/sleep/reports", prices: "/prices", settings: "/family" };
+    navigate(routes[nextTab]);
   }
 
   async function run(action: () => Promise<Family>, success: string) {
+    if (actionInFlight.current) return false;
+    actionInFlight.current = true;
     setLoading(true);
     setError("");
     setSyncState("syncing");
     try {
       acceptFamily(await action());
       setNotice(success);
-      window.setTimeout(() => setNotice(""), 2200);
+      window.setTimeout(() => setNotice(""), 3500);
+      return true;
     } catch (reason) {
       setError(messageOf(reason));
       setSyncState(reason instanceof APIError && reason.code === "network_error" ? "offline" : lastSyncedAt ? "synced" : "offline");
+      return false;
     } finally {
+      actionInFlight.current = false;
       setLoading(false);
     }
   }
@@ -291,31 +304,32 @@ export default function App() {
   const approvalMessage = family.members.length > 1 ? "已发送给对方确认，确认后才会重新计分" : "记录已保存并重新计分";
 
   return (
-    <div className="app-shell">
-      {tab !== "prices" && <header className="topbar">
+    <div className={`app-shell ${tab === "home" ? "original-home-shell" : ""}`}>
+      <header className="topbar">
         <div>
-          <span className="eyebrow">{reportDate(family.activeWeek.weekStart, true)} 至 {reportDate(family.activeWeek.weekEnd)}</span>
-          <h1>{family.name}</h1>
+          <span className="eyebrow">{tab === "home" ? `${reportDate(family.activeWeek.weekStart, true)} 至 ${reportDate(family.activeWeek.weekEnd)}` : family.name}</span>
+          <h1>{tab === "home" ? family.name : tab === "prices" ? "家庭菜价" : tab === "settings" ? "我们的家庭" : "一起早睡"}</h1>
         </div>
-        <div className="topbar-profile"><SyncIndicator state={syncState} lastSyncedAt={lastSyncedAt} /><div className="avatar">{family.currentMember.name.slice(0, 1)}</div></div>
-      </header>}
+        <div className="topbar-profile"><SyncIndicator state={syncState} lastSyncedAt={lastSyncedAt} /><button className="avatar" aria-label="查看个人信息" onClick={() => navigate("/family/profile")}>{family.currentMember.name.slice(0, 1)}</button></div>
+      </header>
 
-      <main>
-        {notice && <div className="toast success">{notice}</div>}
-        {error && <div className="toast error">{error}<button onClick={() => setError("")}>×</button></div>}
-        {tab === "home" && <Home family={family} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} />}
-        {tab === "records" && <Records family={family} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} onSave={(date, time) => run(() => client.saveCheckin(date, time), approvalMessage)} onReview={(id, approve) => run(() => client.reviewCheckinChange(id, approve), approve ? "修改已确认，本周分数已更新" : "修改已拒绝")} onCancel={(id) => run(() => client.cancelCheckinChange(id), "修改申请已撤回")} onExempt={(date) => run(() => client.requestExemption(date), family.members.length > 1 ? "豁免申请已发送给对方确认" : "本日已豁免")} onReviewExemption={(id, approve) => run(() => client.reviewExemptionChange(id, approve), approve ? "豁免已确认，本日记为 0 分、0 罚金" : "豁免申请已拒绝")} onCancelExemption={(id) => run(() => client.cancelExemptionChange(id), "豁免申请已撤回")} />}
-        {tab === "prices" && <PriceView client={client} family={family} />}
+      <main id="main-content">
+        {syncState === "offline" && <div className="offline-banner" role="status"><span>当前离线，显示上次同步内容</span><button onClick={() => setStartupRetry((value) => value + 1)}>重新连接</button></div>}
+        {(tab === "records" || tab === "archives") && <nav className="section-nav" aria-label="早睡内容"><button aria-current={tab === "records" && params.get("view") !== "pending" ? "page" : undefined} onClick={() => navigate("/sleep/records")}>本周记录</button><button aria-current={tab === "records" && params.get("view") === "pending" ? "page" : undefined} onClick={() => navigate("/sleep/records?view=pending")}>待确认{reviewCount > 0 && <b>{reviewCount}</b>}</button><button aria-current={tab === "archives" ? "page" : undefined} onClick={() => changeTab("archives")}>睡眠周报</button></nav>}
+        {notice && <div className="toast success" role="status">{notice}</div>}
+        {error && <div className="toast error" role="alert">{error}<button onClick={() => setError("")}>×</button></div>}
+        {tab === "home" && <TodayView family={family} loading={loading} reviewCount={reviewCount} onCheckIn={() => void run(() => client.checkInNow(), "今晚打卡成功")} onReview={() => navigate("/sleep/records?view=pending")} />}
+        {tab === "records" && <Records family={family} selectedDate={params.get("date") ?? ""} pendingOnly={params.get("view") === "pending"} loading={loading} onCheckIn={() => run(() => client.checkInNow(), "今晚打卡成功")} onSave={(date, time) => run(() => client.saveCheckin(date, time), approvalMessage)} onReview={(id, approve) => run(() => client.reviewCheckinChange(id, approve), approve ? "修改已确认，本周分数已更新" : "修改已拒绝")} onCancel={(id) => run(() => client.cancelCheckinChange(id), "修改申请已撤回")} onExempt={(date) => run(() => client.requestExemption(date), family.members.length > 1 ? "豁免申请已发送给对方确认" : "本日已豁免")} onReviewExemption={(id, approve) => run(() => client.reviewExemptionChange(id, approve), approve ? "豁免已确认，本日记为 0 分、0 罚金" : "豁免申请已拒绝")} onCancelExemption={(id) => run(() => client.cancelExemptionChange(id), "豁免申请已撤回")} />}
+        {tab === "prices" && <PriceView client={client} family={family} storageScope={`${backendURL}:${family.id}`} />}
         {tab === "archives" && <WeeklyReports family={family} />}
         {tab === "settings" && <SettingsView family={family} backendURL={backendURL} joinCode={joinCode} loading={loading} section={settingsSection} onSectionChange={setSettingsSection} onSaveProfile={(name) => run(() => client.saveProfile(name), "个人信息已更新")} onSave={(settings) => run(() => client.saveSettings(settings), "本周设置已保存")} onCompleteReview={() => run(() => client.completeRewardReview(), "已完成本轮 30 天规则复盘")} onExport={exportBackup} onRestore={(backup) => run(() => client.restoreFamily(backup), "家庭数据已从备份恢复")} onExit={clearSession} />}
       </main>
 
       <nav className="bottom-nav" aria-label="主导航">
         <NavButton active={tab === "home"} label="今天" icon="☾" onClick={() => changeTab("home")} />
-        <NavButton active={tab === "records"} label="记录" icon="✓" badge={reviewCount} onClick={() => changeTab("records")} />
+        <NavButton active={tab === "records" || tab === "archives"} label="早睡" icon="✓" badge={reviewCount} onClick={() => changeTab("records")} />
         <NavButton active={tab === "prices"} label="菜价" icon="⌕" onClick={() => changeTab("prices")} />
-        <NavButton active={tab === "archives"} label="周报" icon="▥" onClick={() => changeTab("archives")} />
-        <NavButton active={tab === "settings"} label="设置" icon="⚙" onClick={() => changeTab("settings")} />
+        <NavButton active={tab === "settings"} label="家庭" icon="⚙" onClick={() => changeTab("settings")} />
       </nav>
       {loading && <div className="loading-line" />}
     </div>
@@ -468,139 +482,77 @@ function Setup(props: {
   );
 }
 
-function Home({ family, loading, onCheckIn }: { family: Family; loading: boolean; onCheckIn: () => void }) {
-  const me = family.currentMember;
-  const mySummary = family.activeWeek.summary.members[me.id] ?? { totalScore: 0, totalFine: 0, checkinDays: 0, averageSleepTime: "--:--" };
-  const latest = [...(family.activeWeek.days ?? [])].reverse().find((day) => day.members[me.id]);
-  const weekDays = dateRange(family.activeWeek.weekStart, family.activeWeek.weekEnd).length;
-  const personalMaximum = weeklyMaximum(family.activeWeek.settings, family.activeWeek.weekStart, family.activeWeek.weekEnd);
-  const familyScore = family.members.reduce((total, member) => total + (family.activeWeek.summary.members[member.id]?.totalScore ?? 0), 0);
-  const familyLevel = scoreLevel(familyScore, personalMaximum * family.members.length);
-  const personalLevel = scoreLevel(mySummary.totalScore, personalMaximum);
-  return (
-    <div className="page-stack home-page">
-      <div className="home-greeting"><h2>把今天，轻轻放下。</h2><p>每一次早点睡，都是在照顾明天的自己。</p></div>
-      <section className="hero-card">
-        <div className="night-illustration" aria-hidden="true"><div className="moon-orbit" /><div className="night-moon" /><i /><i /><i /><i /></div>
-        <div className="hero-copy"><span className="eyebrow light">今晚的约定</span>
-        <div className="ideal-time">{family.activeWeek.settings.idealTime}</div>
-        <p>在这之前，说一声晚安</p></div>
-        <button className="checkin-button" onClick={onCheckIn} disabled={loading}><AppIcon name="☾" />{loading ? "正在记录…" : "我要睡了，记录此刻"}<span aria-hidden="true">↗</span></button>
-        <span className="hint">凌晨 {family.activeWeek.settings.cutoffHour}:00 前会算作前一天晚上</span>
-      </section>
-
-      {latest && <div className="latest-row"><span>最近一次 · {latest.date}</span><strong>{latest.members[me.id].exempt ? "已豁免　0 分" : `${latest.members[me.id].time}　${scoreText(latest.members[me.id].score)}`}</strong></div>}
-
-      <section className="score-board">
-        <ScorePanel label="双人本周总分" score={familyScore} level={familyLevel} icon="✦" />
-        <ScorePanel label="我的本周分值" score={mySummary.totalScore} level={personalLevel} icon="☾" />
-      </section>
-
-      <section className="stats-grid">
-        <Stat label="本周罚金" value={String(mySummary.totalFine)} suffix="元" />
-        <Stat label="打卡天数" value={String(mySummary.checkinDays)} suffix={`/ ${weekDays}`} />
-        <Stat label="平均入睡" value={mySummary.averageSleepTime || "--:--"} />
-        <Stat label="家庭完成度" value={String(family.activeWeek.summary.completionRate)} suffix="%" />
-      </section>
-
-      <section className="card together-card">
-        <div className="section-title"><div><h2>一起积攒好梦</h2><p className="section-subtitle">这一周，每一晚都算数</p></div><strong>{family.activeWeek.summary.completionRate}%</strong></div>
-        <div className="week-rhythm" aria-label="本周个人打卡进度">{dateRange(family.activeWeek.weekStart, family.activeWeek.weekEnd).map((date) => {
-          const recorded = Boolean(family.activeWeek.days?.find((day) => day.date === date)?.members[me.id]);
-          return <div key={date} className={recorded ? "completed" : ""} aria-label={`${date} ${recorded ? "已记录" : "未记录"}`}><span>{weekday(date)}</span><i>{recorded ? <AppIcon name="✓" /> : <AppIcon name="☾" />}</i><small>{date.slice(8)}</small></div>;
-        })}</div>
-        <div className="progress"><span style={{ width: `${family.activeWeek.summary.completionRate}%` }} /></div>
-        <div className="member-summaries">
-          {family.members.map((member) => {
-            const summary = family.activeWeek.summary.members[member.id];
-            const level = scoreLevel(summary?.totalScore ?? 0, personalMaximum);
-            return <div key={member.id}><span className="mini-avatar">{member.name.slice(0, 1)}</span><span>{member.name}</span><ScoreTag score={summary?.totalScore ?? 0} level={level} /></div>;
-          })}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Records({ family, loading, onCheckIn, onSave, onReview, onCancel, onExempt, onReviewExemption, onCancelExemption }: { family: Family; loading: boolean; onCheckIn: () => void; onSave: (date: string, time: string) => void; onReview: (id: string, approve: boolean) => void; onCancel: (id: string) => void; onExempt: (date: string) => void; onReviewExemption: (id: string, approve: boolean) => void; onCancelExemption: (id: string) => void }) {
-  const [editor, setEditor] = useState<{ date: string; time: string; hasRecord: boolean } | null>(null);
+function Records({ family, selectedDate, pendingOnly, loading, onCheckIn, onSave, onReview, onCancel, onExempt, onReviewExemption, onCancelExemption }: { family: Family; selectedDate: string; pendingOnly: boolean; loading: boolean; onCheckIn: () => void; onSave: (date: string, time: string) => Promise<boolean>; onReview: (id: string, approve: boolean) => void; onCancel: (id: string) => void; onExempt: (date: string) => Promise<boolean>; onReviewExemption: (id: string, approve: boolean) => void; onCancelExemption: (id: string) => void }) {
+  const [editor, setEditor] = useState<{ date: string; time: string; hasRecord: boolean; mode?: "exempt" } | null>(null);
   const me = family.currentMember;
   const days = dateRange(family.activeWeek.weekStart, family.activeWeek.weekEnd);
   const pending = family.pendingChanges ?? [];
+  const exemptions = family.pendingExemptions ?? [];
   const incoming = pending.filter((change) => change.requestedBy !== me.id);
   const outgoing = pending.filter((change) => change.requestedBy === me.id);
-  const exemptions = family.pendingExemptions ?? [];
   const incomingExemptions = exemptions.filter((change) => change.requestedBy !== me.id);
   const outgoingExemptions = exemptions.filter((change) => change.requestedBy === me.id);
   const exemptionUsage = monthlyExemptionUsage(family);
   const reachedDate = currentNightDate(family.timezone, family.activeWeek.settings.cutoffHour);
+  const date = days.includes(selectedDate) ? selectedDate : days.includes(reachedDate) ? reachedDate : days[days.length - 1];
+  const result = family.activeWeek.days?.find((item) => item.date === date);
+  const mine = result?.members[me.id];
+  const myPending = pending.find((change) => change.memberId === me.id && change.date === date);
+  const myExemptionPending = exemptions.find((change) => change.memberId === me.id && change.date === date);
+  const future = date > reachedDate;
+  const remaining = exemptionUsage.members[me.id]?.remaining ?? 2;
+  const awaiting = Boolean(myPending || myExemptionPending);
 
-  function openEditor(day: string, value?: string) {
-    setEditor({ date: day, time: nearestFiveMinutes(value ?? "23:00"), hasRecord: Boolean(value) });
-  }
-
-  return (
-    <div className="page-stack">
-      <section className="card exemption-budget">
-        <div className="section-title"><div><h2>本月特殊情况豁免</h2></div><span className="quota-month">{exemptionUsage.month.slice(5)} 月</span></div>
-        <div className="quota-members">
-          {family.members.map((member, index) => {
-            const usage = exemptionUsage.members[member.id] ?? { approved: 0, pending: 0, remaining: 2 };
-            return <div key={member.id}><i style={{ background: memberColor(index) }} /><span><b>{member.name}</b><small>已通过 {usage.approved} 次{usage.pending > 0 ? ` · 待确认 ${usage.pending} 次` : ""}</small></span><strong>剩余 {usage.remaining}/2</strong></div>;
-          })}
-        </div>
-        <small className="quota-note">待确认申请也会预占额度；拒绝后额度自动恢复。</small>
+  return <div className="page-stack records-page">
+    {pendingOnly ? <>
+      <div className="page-intro"><div><p>补卡和豁免，在这里一起确认</p><h2>待确认事项</h2></div></div>
+      <section className="approval-center">
+        <div className="section-title"><h2>等我确认</h2><span>{incoming.length + incomingExemptions.length} 项</span></div>
+        {incoming.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReview} />)}
+        {incomingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReviewExemption} />)}
+        {incoming.length + incomingExemptions.length === 0 && <div className="empty-task"><strong>暂时没有需要确认的申请</strong><p>对方补卡或申请豁免后，会出现在这里。</p></div>}
       </section>
-      {(incoming.length > 0 || outgoing.length > 0 || incomingExemptions.length > 0 || outgoingExemptions.length > 0) && (
-        <section className="approval-center">
-          <div className="section-title"><div><h2>双人确认</h2></div><span className="notification-count">{pending.length + exemptions.length}</span></div>
-          {incoming.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReview} />)}
-          {outgoing.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReview} onCancel={onCancel} />)}
-          {incomingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReviewExemption} />)}
-          {outgoingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReviewExemption} onCancel={onCancelExemption} />)}
-        </section>
-      )}
-
-      <section className="card records-card">
-        <div className="section-title"><div><h2>本周记录</h2></div><span className="muted small-copy">编辑需对方确认</span></div>
-        <div className="day-list">
-          {days.map((day) => {
-            const result = (family.activeWeek.days ?? []).find((item) => item.date === day);
-            const mine = result?.members[me.id];
-            const myPending = pending.find((change) => change.memberId === me.id && change.date === day);
-            const myExemptionPending = exemptions.find((change) => change.memberId === me.id && change.date === day);
-            const future = day > reachedDate;
-            return (
-              <div className="day-row" key={day}>
-                <div className="date-badge"><strong>{new Date(`${day}T12:00:00`).getDate()}</strong><span>{weekday(day)}</span></div>
-                <div className="day-members">
-                  {family.members.map((member, memberIndex) => {
-                    const record = result?.members[member.id];
-                    const change = pending.find((candidate) => candidate.memberId === member.id && candidate.date === day);
-                    return (
-                      <div key={member.id} className="member-record">
-                        <i style={{ background: memberColor(memberIndex) }} />
-                        <span>{member.name}</span>
-                        <strong className={record?.exempt ? "exempt-label" : ""}>{record ? record.exempt ? "已豁免" : record.time : "未打卡"}</strong>
-                        {record && <em className={record.score >= 0 ? "positive" : "negative"}>{scoreText(record.score)}</em>}
-                        {change && <small>{change.originalTime || "补卡"} → {change.proposedTime} · 待确认</small>}
-                        {exemptions.find((candidate) => candidate.memberId === member.id && candidate.date === day) && <small>特殊情况豁免 · 待确认</small>}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="row-actions">
-                  {!future && <button className={myPending || myExemptionPending ? "pending-button" : ""} onClick={() => day === reachedDate && !mine && !myPending && !myExemptionPending ? onCheckIn() : openEditor(day, mine?.exempt ? undefined : mine?.time)} disabled={loading || Boolean(mine?.exempt)}>{mine?.exempt ? "已豁免" : myExemptionPending ? "豁免待确认" : myPending ? "修改申请" : mine ? "编辑" : day === reachedDate ? "打卡" : "补卡"}</button>}
-                </div>
-              </div>
-            );
-          })}
+      {(outgoing.length + outgoingExemptions.length > 0) && <section className="approval-center"><h2>我发出的申请</h2>
+        {outgoing.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReview} onCancel={onCancel} />)}
+        {outgoingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReviewExemption} onCancel={onCancelExemption} />)}
+      </section>}
+      <button className="secondary wide" onClick={() => navigate("/sleep/records")}>返回本周记录</button>
+    </> : <>
+      <section className="monthly-exemption" aria-labelledby="monthly-exemption-title">
+        <div className="monthly-exemption-heading"><h2 id="monthly-exemption-title">本月特殊情况豁免</h2><span>{Number(exemptionUsage.month.slice(5))} 月剩余额度</span></div>
+        <div className="exemption-balances">{family.members.map((member) => {
+          const usage = exemptionUsage.members[member.id] ?? { approved: 0, pending: 0, remaining: 2 };
+          return <div key={member.id}><div><span title={member.name}>{member.name}{member.id === me.id && <small>我</small>}</span><strong>{usage.remaining}<small> / 2 次</small></strong></div><p>已用 {usage.approved} 次{usage.pending > 0 ? ` · 待确认 ${usage.pending} 次` : " · 暂无待确认"}</p></div>;
+        })}</div>
+        <div className="exemption-entry"><div><span>已选 {Number(date.slice(5, 7))} 月 {Number(date.slice(8))} 日</span><small>{future ? "未来日期暂不能申请" : mine?.exempt ? "这一天已通过豁免" : awaiting ? "这一天有申请待确认" : remaining <= 0 ? "本月额度已用完" : "每人每月 2 次，待确认也占额度"}</small></div>
+          <button disabled={loading || future || Boolean(mine?.exempt) || (!awaiting && remaining <= 0)} onClick={() => awaiting ? navigate("/sleep/records?view=pending") : setEditor({ date, time: nearestFiveMinutes(mine?.time ?? family.activeWeek.settings.idealTime), hasRecord: Boolean(mine), mode: "exempt" })}>{awaiting ? "查看申请" : mine?.exempt ? "已豁免" : "申请豁免"}<span aria-hidden="true"> ›</span></button>
         </div>
       </section>
+      <div className="section-title records-heading"><div><h2>每一晚都有记录</h2><p>{reportDate(family.activeWeek.weekStart)} — {reportDate(family.activeWeek.weekEnd)}</p></div><button className="text-action" onClick={() => navigate(`/sleep/records?date=${reachedDate}`)}>回到今晚</button></div>
+      <div className="week-rhythm date-selector" aria-label="选择睡觉日期">{days.map((day) => {
+        const record = family.activeWeek.days?.find((item) => item.date === day)?.members[me.id];
+        const awaiting = [...pending, ...exemptions].some((item) => item.memberId === me.id && item.date === day);
+        const status = awaiting ? "待确认" : record ? record.exempt ? "已豁免" : "已记录" : day > reachedDate ? "未到日期" : "未记录";
+        return <button key={day} className={`${day === date ? "selected" : ""} ${record ? "completed" : ""} ${awaiting ? "awaiting" : ""}`} aria-pressed={day === date} aria-label={`${day} ${status}`} onClick={() => navigate(`/sleep/records?date=${day}`, true)}><span>{weekday(day)}</span><i><AppIcon name={record ? "✓" : "☾"} />{awaiting && <em className="pending-dot" />}</i><small>{day.slice(8)}{day === reachedDate ? " · 今晚" : ""}</small></button>;
+      })}</div>
+      <section className="night-detail" aria-label="所选日期记录">
+        <div className="section-title"><h3>{formatDate(date)}的晚上</h3><span>{future ? "还没到这一天" : date === reachedDate ? "今晚" : "历史记录"}</span></div>
+        {family.members.map((member) => {
+          const record = result?.members[member.id];
+          const change = pending.find((item) => item.memberId === member.id && item.date === date);
+          const exemption = exemptions.find((item) => item.memberId === member.id && item.date === date);
+          return <div className="night-member" key={member.id}><span className="mini-avatar">{member.name.slice(0, 1)}</span><div><b>{member.name}{member.id === me.id && <small>我</small>}</b><span>{change ? `申请改为 ${change.proposedTime} · 待确认` : exemption ? "豁免申请待确认" : record ? record.exempt ? "特殊情况，不计入平均入睡时间" : `${scoreText(record.score)} · 罚金 ${record.fine} 元` : future ? "到这一天后即可记录" : "还没有入睡记录"}</span></div>{record?.exempt ? <span className="night-exempt-badge">已豁免</span> : <strong>{record?.time ?? "—"}</strong>}</div>;
+        })}
+        {!future && <div className="night-detail-actions">{awaiting ? <button className="primary wide" onClick={() => navigate("/sleep/records?view=pending")}>查看待确认申请</button> : mine?.exempt ? <p className="muted">本晚豁免已通过，按有效记录计入完成率。</p> : <>
+          <button className="primary wide" disabled={loading} onClick={() => date === reachedDate && !mine ? onCheckIn() : setEditor({ date, time: nearestFiveMinutes(mine?.time ?? family.activeWeek.settings.idealTime), hasRecord: Boolean(mine) })}>{mine ? "修改入睡时间" : date === reachedDate ? "我要睡了 · 记录此刻" : "补充入睡时间"}</button>
+          {!mine && date === reachedDate && <button className="text-action" disabled={loading} onClick={() => setEditor({ date, time: nearestFiveMinutes(family.activeWeek.settings.idealTime), hasRecord: false })}>手动填写入睡时间</button>}
+          <small>{family.members.length > 1 ? "手动补卡、修改和豁免，需要另一位成员确认。" : "只有一位成员，手动记录会直接生效。"}</small>
+        </>}</div>}
+      </section>
 
-      {editor && <EditSheet editor={editor} loading={loading} onClose={() => setEditor(null)} onSave={(date, time) => { onSave(date, time); setEditor(null); }} onExempt={(date) => { onExempt(date); setEditor(null); }} />}
-    </div>
-  );
+    </>}
+    {editor && <EditSheet editor={editor} approvalRequired={family.members.length > 1} remaining={remaining} loading={loading} onClose={() => setEditor(null)} onSave={async (day, time) => { if (await onSave(day, time)) setEditor(null); }} onExempt={async (day) => { if (await onExempt(day)) setEditor(null); }} />}
+  </div>;
 }
 
 function ExemptionApprovalItem({ change, members, canReview, loading, onReview, onCancel }: { change: PendingExemption; members: Member[]; canReview: boolean; loading: boolean; onReview: (id: string, approve: boolean) => void; onCancel?: (id: string) => void }) {
@@ -625,26 +577,54 @@ function ApprovalItem({ change, members, canReview, loading, onReview, onCancel 
   );
 }
 
-function EditSheet({ editor, loading, onClose, onSave, onExempt }: { editor: { date: string; time: string; hasRecord: boolean }; loading: boolean; onClose: () => void; onSave: (date: string, time: string) => void; onExempt: (date: string) => void }) {
+function EditSheet({ editor, approvalRequired, remaining, loading, onClose, onSave, onExempt }: { approvalRequired: boolean; remaining: number; editor: { date: string; time: string; hasRecord: boolean; mode?: "exempt" }; loading: boolean; onClose: () => void; onSave: (date: string, time: string) => void; onExempt: (date: string) => void }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const busyRef = useRef(loading);
+  busyRef.current = loading;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busyRef.current) closeRef.current();
+      if (event.key !== "Tab") return;
+      const elements = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input:not(:disabled)');
+      if (!elements?.length) return;
+      const first = elements[0], last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, []);
   const [hour, setHour] = useState(editor.time.slice(0, 2));
   const [minute, setMinute] = useState(editor.time.slice(3, 5));
   const hours = [...Array.from({ length: 6 }, (_, index) => index + 18), ...Array.from({ length: 18 }, (_, index) => index)];
   const minutes = Array.from({ length: 12 }, (_, index) => index * 5);
   return (
-    <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section className="edit-sheet" role="dialog" aria-modal="true" aria-label="编辑入睡时间">
+    <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !loading) onClose(); }}>
+      <section ref={dialogRef} className="edit-sheet" role="dialog" aria-modal="true" aria-label={editor.mode === "exempt" ? "申请特殊情况豁免" : "编辑入睡时间"}>
         <div className="sheet-handle" />
-        <div className="sheet-title"><div><h2>{editor.hasRecord ? "修改打卡" : "补充打卡"}</h2></div><button onClick={onClose} aria-label="关闭">×</button></div>
+        <div className="sheet-title"><div><h2>{editor.mode === "exempt" ? "申请特殊情况豁免" : editor.hasRecord ? "修改打卡" : "补充打卡"}</h2></div><button disabled={loading} onClick={onClose} aria-label="关闭">×</button></div>
         <div className="selected-date"><span>日期</span><strong>{formatDate(editor.date)} · {weekday(editor.date)}</strong></div>
+        {editor.mode === "exempt" ? <>
+          <div className="exemption-sheet-summary"><strong>本月还可用 {remaining} 次</strong><p>{editor.hasRecord ? "通过后会替换这一天的打卡记录，积分与罚金变为 0。" : "通过后这一天记为有效记录，积分与罚金为 0。"}不计入平均入睡时间。</p></div>
+          <p className="approval-note">{approvalRequired ? "申请会发给对方，确认后生效；等待确认时占用 1 次额度。" : "确认后立即生效，并使用 1 次额度。"}</p>
+          <button className="primary wide" disabled={loading || remaining <= 0} onClick={() => onExempt(editor.date)}>{loading ? "正在提交…" : remaining <= 0 ? "本月豁免额度已用完" : approvalRequired ? "提交豁免申请" : "确认本日豁免"}</button>
+        </> : <>
         <div className="time-picker">
           <label>时<select value={hour} onChange={(event) => setHour(event.target.value)}>{hours.map((value) => <option key={value} value={String(value).padStart(2, "0")}>{String(value).padStart(2, "0")}</option>)}</select></label>
           <b>:</b>
           <label>分<select value={minute} onChange={(event) => setMinute(event.target.value)}>{minutes.map((value) => <option key={value} value={String(value).padStart(2, "0")}>{String(value).padStart(2, "0")}</option>)}</select></label>
         </div>
-        <p className="approval-note">提交后会通知对方，对方同意后才会更新记录和本周分数。</p>
-        <button className="primary wide" disabled={loading} onClick={() => onSave(editor.date, `${hour}:${minute}`)}>提交给对方确认</button>
-        <button className="sheet-exempt" disabled={loading} onClick={() => onExempt(editor.date)}>申请本日特殊情况豁免</button>
-        <small className="exemption-note">每人每月最多 2 次，需对方确认；通过后本日记为有效记录，但为 0 分、0 罚金且不计入平均入睡时间。</small>
+        <p className="approval-note">{approvalRequired ? "对方确认后，才会更新记录和本周分数。" : "保存后立即更新这一天的记录和本周分数。"}</p>
+        <button className="primary wide" disabled={loading} onClick={() => onSave(editor.date, `${hour}:${minute}`)}>{loading ? "正在提交…" : approvalRequired ? "提交给对方确认" : "保存入睡时间"}</button>
+        <button className="sheet-exempt" disabled={loading || remaining <= 0} onClick={() => onExempt(editor.date)}>{remaining <= 0 ? "本月豁免额度已用完" : "申请本日特殊情况豁免"}</button>
+        <small className="exemption-note">每人每月最多 2 次；通过后本日记为有效记录，但为 0 分、0 罚金且不计入平均入睡时间。</small>
+        </>}
       </section>
     </div>
   );
@@ -653,13 +633,14 @@ function EditSheet({ editor, loading, onClose, onSave, onExempt }: { editor: { d
 function WeeklyReports({ family }: { family: Family }) {
   const archives = family.weeklyArchives ?? [];
   const [expandedWeek, setExpandedWeek] = useState("");
+  const [period, setPeriod] = useState<"current" | "history">("current");
   const previousWeek = archives.find((archive) => archive.weekEnd === addDateDays(family.activeWeek.weekStart, -1));
   return (
     <div className="page-stack weekly-page">
-      <div className="page-heading"><div className="page-heading-title"><h2>两个人的睡眠周报</h2></div><p>把早一点睡，慢慢变成习惯。</p></div>
-      {previousWeek && <WeekComparison family={family} previous={previousWeek} />}
-      <WeeklyCard title="本周进行中" weekStart={family.activeWeek.weekStart} weekEnd={family.activeWeek.weekEnd} rewardRuleVersion={family.activeWeek.rewardRuleVersion} days={family.activeWeek.days ?? []} summary={family.activeWeek.summary} settings={family.activeWeek.settings} members={family.members} current />
-      {archives.length === 0 ? <Empty text="还没有历史周报，完成第一周后这里会自动出现。" /> : <section className="history-weeks"><div className="history-weeks-head"><div><h2>历史周报</h2></div><small>{archives.length} 周</small></div>{archives.map((archive) => <HistoryWeek key={archive.weekStart} archive={archive} members={family.members} expanded={expandedWeek === archive.weekStart} onToggle={() => setExpandedWeek((current) => current === archive.weekStart ? "" : archive.weekStart)} />)}</section>}
+      <div className="section-title"><div><h2>睡得怎么样</h2><p className="muted small-copy">看趋势，也看看这一周的收获。</p></div><button className="text-action" onClick={() => navigate("/family/reward")}>奖励规则 ›</button></div><div className="report-period" aria-label="周报范围"><button aria-pressed={period === "current"} onClick={() => setPeriod("current")}>本周</button><button aria-pressed={period === "history"} onClick={() => setPeriod("history")}>历史周报 · {archives.length}</button></div>
+      {period === "current" && previousWeek && <WeekComparison family={family} previous={previousWeek} />}
+      {period === "current" && <WeeklyCard title="本周进行中" weekStart={family.activeWeek.weekStart} weekEnd={family.activeWeek.weekEnd} rewardRuleVersion={family.activeWeek.rewardRuleVersion} days={family.activeWeek.days ?? []} summary={family.activeWeek.summary} settings={family.activeWeek.settings} members={family.members} current />}
+      {period === "history" && (archives.length === 0 ? <Empty text="还没有历史周报，完成第一周后这里会自动出现。" /> : <section className="history-weeks"><div className="history-weeks-head"><div><h2>历史周报</h2></div><small>{archives.length} 周</small></div>{archives.map((archive) => <HistoryWeek key={archive.weekStart} archive={archive} members={family.members} expanded={expandedWeek === archive.weekStart} onToggle={() => setExpandedWeek((current) => current === archive.weekStart ? "" : archive.weekStart)} />)}</section>)}
     </div>
   );
 }
@@ -790,7 +771,8 @@ function SettingsView({ family, backendURL, joinCode, loading, section, onSectio
   const [draftError, setDraftError] = useState("");
   const owner = family.currentMember.role === "owner";
 
-  useEffect(() => { setDraft(structuredClone(family.activeWeek.settings)); setDraftError(""); }, [family.activeWeek.settings]);
+  const savedRules = JSON.stringify(family.activeWeek.settings);
+  useEffect(() => { setDraft(JSON.parse(savedRules) as Settings); setDraftError(""); }, [savedRules]);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [section]);
 
@@ -841,8 +823,25 @@ function SettingsView({ family, backendURL, joinCode, loading, section, onSectio
     return <DataBackupView backendURL={backendURL} family={family} owner={owner} loading={loading} onExport={onExport} onRestore={onRestore} onBack={() => onSectionChange("root")} />;
   }
 
+  if (section === "connection") return <div className="page-stack settings-page"><SettingsBack eyebrow="连接与身份" title="服务器与登录" onBack={() => onSectionChange("root")} /><ServerAddressForm backendURL={backendURL} /><section className="card"><h2>当前登录</h2><p className="muted">{family.currentMember.name} · {family.currentMember.phone}</p><button className="exit-button" onClick={onExit}>退出此家庭（保留本机备份）</button></section></div>;
+
   const review = family.rewardReview;
-  return <div className="page-stack settings-page"><section className="card info-card"><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl><button className="profile-edit" onClick={() => onSectionChange("profile")}>修改个人信息 ›</button></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">一起回顾最近的睡眠习惯</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => onSectionChange("review")}>查看数据 ›</button></section><section className="card settings-menu"><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p>{!owner && <button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>积分规则</b><small>查看本周理想时间、积分与罚金档位</small></span><em>›</em></button>}<button onClick={() => onSectionChange("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => onSectionChange("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => onSectionChange("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><h2>创建者设置</h2><p className="muted">修改积分档位只影响当前活动周。</p><button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>编辑积分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<ServerAddressForm backendURL={backendURL} /><button className="exit-button" onClick={onExit}>退出此家庭（保留本机备份）</button></div>;
+  return <div className="page-stack settings-page family-page">
+    <section className="family-members-panel"><div className="section-title"><div><h2>{family.name}</h2><p>{family.members.length === 2 ? "两个人，一起照顾日常" : "邀请另一位成员，开始你们的计划"}</p></div><span>{family.members.length}/2 人</span></div>
+      <div className="family-member-list">{family.members.map((member) => <div key={member.id}><span className="mini-avatar">{member.name.slice(0, 1)}</span><span><b>{member.name}{member.id === family.currentMember.id ? "（我）" : ""}</b><small>{member.role === "owner" ? "家庭创建者" : "家庭成员"}</small></span>{member.id === family.currentMember.id && <button className="text-action" onClick={() => onSectionChange("profile")}>编辑</button>}</div>)}</div>
+      {joinCode && <div className="family-invite"><span>{family.members.length < 2 ? "把邀请码告诉对方" : "家庭邀请码"}</span><strong>{joinCode}</strong></div>}
+    </section>
+    <section className="family-menu"><h3>我们的约定</h3>
+      <button onClick={() => onSectionChange("score")}><span><b>入睡时间与积分</b><small>理想时间 {family.activeWeek.settings.idealTime} · {owner ? "可调整本周规则" : "查看本周规则"}</small></span><em>›</em></button>
+      <button onClick={() => onSectionChange("reward")}><span><b>奖励怎么算</b><small>个人与双人奖励，按周查看参考金额</small></span><em>›</em></button>
+      <button onClick={() => onSectionChange("levels")}><span><b>等级说明</b><small>了解每个积分等级</small></span><em>›</em></button>
+      <button onClick={() => onSectionChange("review")}><span><b>30 天一起复盘{review?.due && <i>待复盘</i>}</b><small>{review?.due ? "回顾完成度和趋势，一起商量下一阶段" : `距离下次复盘还有 ${review?.daysRemaining ?? 30} 天`}</small></span><em>›</em></button>
+    </section>
+    <section className="family-menu"><h3>数据与账户</h3>
+      <button onClick={() => onSectionChange("backup")}><span><b>家庭数据备份</b><small>本机备份、导出与恢复</small></span><em>›</em></button>
+      <button onClick={() => onSectionChange("connection")}><span><b>服务器与登录</b><small>更换连接地址或退出当前家庭</small></span><em>›</em></button>
+    </section>
+  </div>;
 }
 
 function ProfileView({ member, loading, onSave, onBack }: { member: Member; loading: boolean; onSave: (name: string) => void; onBack: () => void }) {
@@ -964,30 +963,12 @@ function NavButton({ active, icon, label, badge = 0, onClick }: { active: boolea
   return <button className={active ? "active" : ""} aria-current={active ? "page" : undefined} onClick={onClick}><span><AppIcon name={icon} />{badge > 0 && <b className="nav-badge">{badge}</b>}</span>{label}</button>;
 }
 
-function AppIcon({ name }: { name: string }) {
-  const paths: Record<string, string> = {
-    "☾": "M20.5 13.2A8.7 8.7 0 0 1 10.8 3.5 8.8 8.8 0 1 0 20.5 13.2Z",
-    "✓": "M8 4H6a2 2 0 0 0-2 2v14h16V6a2 2 0 0 0-2-2h-2M9 3h6v4H9zM8 13l3 3 5-6",
-    "⌕": "m4 9 2 11h12l2-11ZM8 9l4-6 4 6M9 13v3m6-3v3M3 9h18",
-    "▥": "M4 3v17h17M8 15v-4m5 4V6m5 9V9",
-    "⚙": "M4 7h16M4 17h16M9 4v6m6 4v6",
-  };
-  return <svg className="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] ?? paths["☾"]} /></svg>;
-}
-
-function Stat({ label, value, suffix = "" }: { label: string; value: string; suffix?: string }) {
-  return <div className="stat"><span>{label}</span><div><strong>{value}</strong>{suffix && <em>{suffix}</em>}</div></div>;
-}
 
 function Empty({ text }: { text: string }) {
   return <div className="empty"><span>☾</span><p>{text}</p></div>;
 }
 
-type ScoreLevel = { name: string; tone: "bloom" | "fresh" | "calm" | "steady" | "reset"; description: string };
 
-function ScorePanel({ label, score, level, icon }: { label: string; score: number; level: ScoreLevel; icon: string }) {
-  return <div className={`score-panel grade-${level.tone}`}><span>{icon} {label}</span><div><strong>{score > 0 ? "+" : ""}{formatScore(score)}</strong><em>分</em></div><small>{level.name} · {level.description}</small></div>;
-}
 
 function ScoreTag({ score, level }: { score: number; level: ScoreLevel }) {
   return <span className={`score-tag grade-${level.tone}`}><b>{score > 0 ? "+" : ""}{formatScore(score)}</b><small>{level.name}</small></span>;
@@ -1001,10 +982,6 @@ function scoreText(score: number) {
   return `${score > 0 ? "+" : ""}${formatScore(score)} 分`;
 }
 
-function formatScore(score: number) {
-  const rounded = Math.round(score * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-}
 
 function tierReward(score: number, tiers: readonly { minimum: number; total: number }[]) {
   return tiers.reduce((reward, tier) => score >= tier.minimum ? tier.total : reward, 0);
@@ -1031,17 +1008,6 @@ function weeklyReward(summary: WeekSummary, members: Member[], rewardRuleVersion
   return { personal, familyScore, familyEligible, personalMinimum: rules.personalMinimum, minimumCheckinDays: rules.minimumCheckinDays, family, total };
 }
 
-function weeklyMaximum(settings: Settings, weekStart?: string, weekEnd?: string) {
-  const weekday = Math.max(...settings.weekdayTiers.map((tier) => tier.score));
-  const weekend = Math.max(...settings.weekendTiers.map((tier) => tier.score));
-  if (weekStart && weekEnd) {
-    return dateRange(weekStart, weekEnd).reduce((total, date) => {
-      const day = new Date(`${date}T12:00:00`).getDay();
-      return total + (day === 5 || day === 6 ? weekend : weekday);
-    }, 0);
-  }
-  return weekday * 5 + weekend * 2;
-}
 
 type ExemptionUsage = { approved: number; pending: number; remaining: number };
 type ReviewMemberMetric = {
@@ -1074,11 +1040,7 @@ function dateInTimezone(timezone: string, value: Date) {
 }
 
 function currentNightDate(timezone: string, cutoffHour: number) {
-  const now = new Date();
-  const date = dateInTimezone(timezone, now);
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
-  const hour = Number(parts.find((item) => item.type === "hour")?.value ?? "0");
-  return hour < cutoffHour ? addDateDays(date, -1) : date;
+  return nightDate(timezone, cutoffHour);
 }
 
 function addDateDays(date: string, offset: number) {
@@ -1182,14 +1144,6 @@ function reviewTrendText(metric: ReviewMemberMetric) {
   return metric.trendMinutes < 0 ? `平均提前 ${Math.abs(metric.trendMinutes)} 分钟` : `平均推迟 ${metric.trendMinutes} 分钟`;
 }
 
-function scoreLevel(score: number, maximum: number): ScoreLevel {
-  const ratio = maximum > 0 ? score / maximum : score > 0 ? 1 : score < 0 ? -1 : 0;
-  if (ratio >= 0.8) return { name: "晨光", tone: "bloom", description: "状态闪闪发光" };
-  if (ratio >= 0.55) return { name: "新芽", tone: "fresh", description: "节奏稳定生长" };
-  if (ratio >= 0.25) return { name: "清风", tone: "calm", description: "正在靠近目标" };
-  if (ratio >= 0) return { name: "守夜", tone: "steady", description: "再早一点就好" };
-  return { name: "重启", tone: "reset", description: "下周轻轻重来" };
-}
 
 function memberColor(index: number) {
   return ["#5f9f8b", "#e38a73", "#7896bd"][index % 3];
@@ -1233,15 +1187,4 @@ function formatDate(date: string) {
 
 function weekday(date: string) {
   return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(`${date}T12:00:00`).getDay()];
-}
-
-function dateRange(start: string, end: string) {
-  const result: string[] = [];
-  const cursor = new Date(`${start}T12:00:00`);
-  const final = new Date(`${end}T12:00:00`);
-  while (cursor <= final) {
-    result.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return result;
 }

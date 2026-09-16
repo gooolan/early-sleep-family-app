@@ -1,0 +1,97 @@
+/* Settings use the same calm palette and generous rhythm as the reports. */
+.settings-page { gap: 20px; }
+.settings-page .card { padding: 22px; }
+.settings-page .subpage-head { grid-template-columns: 44px minmax(0, 1fr); gap: 13px; padding: 2px 0 6px; }
+.settings-page .subpage-head > button { width: 44px; height: 44px; border-color: var(--line); border-radius: 15px; color: var(--ink); background: white; }
+.settings-page .subpage-head .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0; line-height: 1.7; }
+.settings-page .subpage-head h2 { margin: 5px 0 0; font-size: 23px; line-height: 1.3; }
+.settings-page .muted { font-size: 12px; line-height: 1.85; }
+.settings-page label { font-size: 12px; gap: 9px; }
+.settings-page input { min-width: 0; min-height: 46px; font-size: 15px; background: #f8fafd; }
+.settings-page .primary, .settings-page .ghost { min-height: 46px; font-size: 13px; }
+.settings-page .profile-card { gap: 26px; }
+.profile-identity { display: flex; align-items: center; gap: 16px; width: 100%; padding-bottom: 23px; border-bottom: 1px solid var(--line); }
+.settings-page .profile-avatar { flex: none; width: 64px; height: 64px; border-radius: 21px; color: #426291; background: #e7eef9; box-shadow: none; font-family: inherit; font-size: 26px; font-weight: 500; }
+.profile-identity > div:last-child { min-width: 0; }
+.profile-identity h3 { margin: 0 0 8px; overflow-wrap: anywhere; font-size: 19px; font-weight: 600; }
+.profile-identity p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.settings-page .profile-form { gap: 21px; }
+.settings-page .profile-form > small { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.settings-page .readonly-field { color: var(--muted); background: #eef2f7; }
+.settings-page .rules-card > .muted { margin: 0 0 22px; }
+.settings-page .two-fields { gap: 14px; }
+.settings-page .two-fields > label { min-width: 0; }
+.settings-page .tier-editor { margin: 28px 0; }
+.settings-page .tier-editor h3 { margin: 0 0 17px; font-size: 14px; font-weight: 600; }
+.settings-page .tier-head { padding: 10px 4px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.settings-page .tier-head, .settings-page .tier-row { grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr)); gap: 9px; text-align: center; }
+.settings-page .tier-row { margin-top: 10px; }
+.settings-page .tier-row input { width: 100%; padding: 9px 5px; border-color: var(--line); border-radius: 11px; font-size: 13px; }
+.settings-page .tier-row .after { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+.settings-page .rule-intro { margin: 0 0 28px; padding: 17px; border-radius: 14px; color: #526582; background: #edf3fc; font-size: 13px; line-height: 1.9; }
+.settings-page .rule-intro b { color: #375d97; white-space: nowrap; }
+.settings-page .reward-rule-section + .reward-rule-section { margin-top: 30px; }
+.settings-page .reward-rule-section h3 { margin: 0 0 9px; font-size: 16px; }
+.settings-page .reward-rule-section > p { margin: 0 0 16px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.settings-page .reward-rule-table { border-color: var(--line); }
+.settings-page .reward-rule-table > div { min-height: 48px; padding: 12px; border-color: #e9eef5; color: var(--ink); font-size: 12px; line-height: 1.6; }
+.settings-page .reward-rule-table .reward-rule-head { min-height: 42px; color: var(--muted); background: #f0f4fa; font-size: 11px; }
+.settings-page .reward-rule-table > div b { color: #486aa2; font-size: 13px; }
+.settings-page .payment-rules { margin-top: 28px; gap: 14px; }
+.settings-page .payment-rules > div { padding: 16px; border-radius: 13px; background: #f7f8fb; }
+.settings-page .payment-rules b { margin-bottom: 7px; color: var(--ink); font-size: 13px; }
+.settings-page .payment-rules span { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.settings-page .level-rules-card > p { margin-top: 0; color: var(--muted); font-size: 13px; line-height: 1.85; }
+.settings-page .maximum-row { gap: 12px; margin: 23px 0; }
+.settings-page .maximum-row span { padding: 18px 10px; border-radius: 14px; color: var(--muted); background: #eef3fc; font-size: 11px; }
+.settings-page .maximum-row b { margin-top: 9px; color: #375d97; font-size: 23px; font-weight: 600; }
+.settings-page .level-rule-list { gap: 12px; margin: 24px 0; }
+.settings-page .level-rule-list li { min-height: 60px; padding: 16px; }
+.settings-page .level-rule-list li b { font-size: 15px; }
+.settings-page .level-rule-list li span { font-size: 12px; opacity: 1; }
+.settings-page .level-rules-card > small { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.settings-page .review-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; gap: 12px; }
+.settings-page .review-overview > div { min-height: 115px; padding: 16px 13px; gap: 9px; background: #eff4fc; }
+.settings-page .review-overview > div:first-child { grid-column: 1 / -1; min-height: 0; background: #e5edf9; }
+.settings-page .review-overview span { color: #5c7190; font-size: 11px; }
+.settings-page .review-overview strong { color: #375d97; font-family: inherit; font-size: 23px; font-weight: 600; }
+.settings-page .review-overview .review-period { display: flex; flex-wrap: wrap; gap: 6px; font-size: 18px; }
+.settings-page .review-overview .review-period span { color: inherit; font: inherit; }
+.settings-page .review-overview small { color: var(--muted); font-size: 11px; line-height: 1.7; }
+.settings-page .review-member-list { gap: 18px; }
+.settings-page .review-member { gap: 21px; }
+.settings-page .review-member-head { grid-template-columns: 4px minmax(0, 1fr) auto; }
+.settings-page .review-member-head > i { width: 4px; height: 32px; }
+.settings-page .review-member-head h3 { font-size: 16px; }
+.settings-page .review-member-head span { display: block; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.settings-page .review-member-head > strong { color: #486aa2; font-family: inherit; font-size: 20px; }
+.settings-page .review-stat-grid { gap: 8px; }
+.settings-page .review-stat-grid span { padding: 14px 10px; gap: 9px; color: var(--muted); background: #f1f5fb; font-size: 11px; }
+.settings-page .review-stat-grid b { color: var(--ink); font-size: 15px; }
+.settings-page .review-trend { padding: 17px; gap: 13px; background: #fbf6eb; }
+.settings-page .review-trend span { color: #807258; font-size: 11px; gap: 6px; }
+.settings-page .review-trend b { color: var(--ink); font-size: 16px; }
+.settings-page .review-trend > strong { padding-top: 10px; border-top: 1px solid #eae1d1; font-size: 12px; }
+.settings-page .review-checklist ul { gap: 13px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.settings-page .review-checklist p, .settings-page .review-owner-note, .settings-page .review-data-note { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.settings-page .backup-card { gap: 20px; }
+.settings-page .backup-card .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0; }
+.settings-page .backup-card h2 { margin-top: 7px; font-size: 18px; }
+.settings-page .local-backup-entry { gap: 10px; padding: 17px 0 0; border-color: var(--line); }
+.settings-page .local-backup-entry strong { font-size: 14px; line-height: 1.6; }
+.settings-page .local-backup-entry small, .settings-page .backup-card > small { color: var(--muted); font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+.settings-page .local-backup-actions { gap: 10px; margin-top: 5px; }
+.settings-page .local-backup-actions > button { flex: 1 1 auto; }
+.settings-page .backup-block { grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 16px 13px; }
+.settings-page .backup-icon { width: 44px; height: 44px; border-radius: 14px; color: #486aa2; background: #e8effb; }
+.settings-page .backup-icon.restore { color: #92743e; background: #faf1dc; }
+.settings-page .backup-block h3 { margin: 1px 0 9px; font-size: 15px; line-height: 1.6; }
+.settings-page .backup-block p { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.settings-page .backup-block > button, .settings-page .backup-block > .restore-file { grid-column: 1 / -1; justify-self: stretch; }
+.settings-page .restore-file > span { display: grid; place-items: center; min-height: 46px; border: 1px solid #bfcee5; border-radius: 12px; color: var(--blue); background: #f4f7fc; font-size: 13px; }
+.settings-page .restore-file:focus-within > span { outline: 2px solid var(--blue); outline-offset: 3px; }
+.settings-page .backup-warning { padding: 14px; color: #8a6b42; background: #fbf5e9; font-size: 12px; line-height: 1.8; }
+@media (max-width: 390px) {
+  .settings-page .card { padding: 18px; }
+  .settings-page .review-overview { padding: 12px; }
+}

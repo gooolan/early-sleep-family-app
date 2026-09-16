@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { LiveUpdatePrompt } from "./LiveUpdatePrompt";
 import "./styles.css";
+import "./theme.css";
+import "./settings.css";
 import { preserveLegacyCache } from "./backup";
 import { initializeLiveUpdates } from "./updater";
 

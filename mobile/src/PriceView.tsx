@@ -166,6 +166,10 @@ export function PriceView({ client, family }: { client: APIClient; family: Famil
     }
   }
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [screen]);
+
   const visibleCatalog = catalog ?? emptyPriceCatalog;
 
   return (
@@ -299,7 +303,7 @@ function PriceHome(props: {
 
   return (
     <div className="price-stack">
-      <PriceHeader title="家庭菜价" subtitle="先看最新价格，完整记录与评级统一收在页面下方。" />
+      <PriceHeader title="家庭菜价" subtitle="记住日常好价格，一起把小日子过好。" />
       <section className="price-search-card">
         <div className="search-field"><span aria-hidden="true"><PriceGlyph name="search" /></span><input disabled={!props.ready} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.initialLoading ? "菜价加载中…" : "搜索商品，例如番茄、猪里脊"} /></div>
         {query.trim() && visible.length === 0 && !exact && <button className="price-add-result" disabled={adding} onClick={() => void addProduct()}>＋ 添加商品“{query.trim()}”</button>}
@@ -308,7 +312,7 @@ function PriceHome(props: {
 
       <button className="record-price-main" disabled={props.loading || !props.ready} onClick={() => props.onRecord()}><span>＋</span><div><b>记录菜价</b><small>单价、总价都能快速录入</small></div></button>
 
-      {!query.trim() && <section className="price-section latest-price-section"><div className="price-section-head"><div><span>LATEST PRICES</span><h2>最新菜价</h2></div><small>{props.initialLoading ? "正在异步加载" : recordedCount ? `${recordedCount} 种已记录` : "等待第一条价格"}</small></div>{props.initialLoading ? <PriceListSkeleton /> : homeProducts.length ? <><div className="latest-product-list">{homeProducts.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => props.onOpen(product.id)} />)}</div>{productsWithLatest.length > homeLatestLimit && <button className="price-view-all" onClick={props.onViewAll}>查看全部 {productsWithLatest.length} 种菜价 <span aria-hidden="true">›</span></button>}</> : <div className="price-empty compact">还没有商品。点击“记录菜价”添加第一种菜。</div>}</section>}
+      {!query.trim() && <section className="price-section latest-price-section"><div className="price-section-head"><div><h2>最新菜价</h2></div><small>{props.initialLoading ? "正在异步加载" : recordedCount ? `${recordedCount} 种已记录` : "等待第一条价格"}</small></div>{props.initialLoading ? <PriceListSkeleton /> : homeProducts.length ? <><div className="latest-product-list">{homeProducts.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => props.onOpen(product.id)} />)}</div>{productsWithLatest.length > homeLatestLimit && <button className="price-view-all" onClick={props.onViewAll}>查看全部 {productsWithLatest.length} 种菜价 <span aria-hidden="true">›</span></button>}</> : <div className="price-empty compact">还没有商品。点击“记录菜价”添加第一种菜。</div>}</section>}
 
       <button className="price-history-entry" disabled={!props.ready} onClick={props.onHistory}><span aria-hidden="true">≡</span><div><b>全部历史记录</b><small>{props.initialLoading ? "记录加载中…" : `${catalog.records.length} 条记录 · 可补评级、编辑和删除`}</small></div><em aria-hidden="true">›</em></button>
     </div>
@@ -317,7 +321,7 @@ function PriceHome(props: {
 
 function PriceProducts({ catalog, onBack, onOpen }: { catalog: PriceCatalog; onBack: () => void; onOpen: (productID: string) => void }) {
   const productsWithLatest = useMemo(() => productLatestEntries(catalog), [catalog]);
-  return <div className="price-stack"><SubpageHeader title="全部菜价" eyebrow="LATEST PRICES" onBack={onBack} /><section className="price-section latest-price-section"><div className="price-section-head"><div><span>PRODUCT LIST</span><h2>每种菜的最新价格</h2></div><small>共 {productsWithLatest.length} 种</small></div>{productsWithLatest.length ? <div className="latest-product-list">{productsWithLatest.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => onOpen(product.id)} />)}</div> : <div className="price-empty compact">还没有商品。</div>}</section></div>;
+  return <div className="price-stack"><SubpageHeader title="全部菜价" eyebrow="日常价格备忘" onBack={onBack} /><section className="price-section latest-price-section"><div className="price-section-head"><div><h2>每种菜的最新价格</h2></div><small>共 {productsWithLatest.length} 种</small></div>{productsWithLatest.length ? <div className="latest-product-list">{productsWithLatest.map(({ product, record }) => <LatestProductPrice key={product.id} product={product} record={record} store={record ? catalog.stores.find((item) => item.id === record.storeId) : undefined} onClick={() => onOpen(product.id)} />)}</div> : <div className="price-empty compact">还没有商品。</div>}</section></div>;
 }
 
 function PriceListSkeleton() {
@@ -350,7 +354,7 @@ function PriceHistory(props: {
   const storeByID = Object.fromEntries(props.catalog.stores.map((store) => [store.id, store]));
   const memberByID = Object.fromEntries(props.family.members.map((member) => [member.id, member]));
 
-  return <div className="price-stack"><SubpageHeader title="全部历史记录" eyebrow="PRICE HISTORY" onBack={props.onBack} /><section className="price-section all-history-section"><div className="price-section-head"><div><span>ALL RECORDS</span><h2>家庭菜价记录</h2></div><small>共 {records.length} 条</small></div>{records.length ? <><div className="all-history-list">{visibleRecords.map((record) => { const product = productByID[record.productId] ?? { id: record.productId, name: "未知商品", createdAt: "" }; const store = storeByID[record.storeId]; return <article key={record.id} className="all-history-row"><ProductIcon product={product} /><div className="all-history-main"><button className="all-history-product" onClick={() => props.onOpen(record.productId)}>{product.name}</button><p>{store?.name ?? "未知店铺"} · {formatPurchaseDate(record.purchasedAt)} · {memberByID[record.memberId]?.name ?? "家庭成员"}</p><small>{entryDescription(record)}</small></div><div className="all-history-value"><strong>{formatMoney(record.normalizedPrice)}</strong><span>元/{normalizedLabels[record.normalizedUnit]}</span>{record.priceKind === "discount" && <em>优惠价</em>}</div><div className="all-history-footer"><div className="history-rating"><span>{record.quality ? "品质评级" : "补充评级"}</span><StarRating value={record.quality} onChange={(quality) => void props.onQuality(record.id, quality)} />{record.quality && <button disabled={props.loading} onClick={() => void props.onQuality(record.id, undefined)}>清除</button>}</div><div className="history-buttons"><button disabled={props.loading} onClick={() => props.onEdit(record)}>编辑</button><button disabled={props.loading} onClick={() => props.onDelete(record.id)}>删除</button></div></div></article>; })}</div>{visibleRecords.length < records.length && <button className="price-load-more" onClick={() => setVisibleCount((count) => count + historyPageSize)}>加载更多 · 还有 {records.length - visibleRecords.length} 条</button>}</> : <div className="price-empty compact">还没有菜价记录。</div>}</section></div>;
+  return <div className="price-stack"><SubpageHeader title="全部历史记录" eyebrow="每一笔日常，都有迹可循" onBack={props.onBack} /><section className="price-section all-history-section"><div className="price-section-head"><div><h2>家庭菜价记录</h2></div><small>共 {records.length} 条</small></div>{records.length ? <><div className="all-history-list">{visibleRecords.map((record) => { const product = productByID[record.productId] ?? { id: record.productId, name: "未知商品", createdAt: "" }; const store = storeByID[record.storeId]; return <article key={record.id} className="all-history-row"><ProductIcon product={product} /><div className="all-history-main"><button className="all-history-product" onClick={() => props.onOpen(record.productId)}>{product.name}</button><p>{store?.name ?? "未知店铺"} · {formatPurchaseDate(record.purchasedAt)} · {memberByID[record.memberId]?.name ?? "家庭成员"}</p><small>{entryDescription(record)}</small></div><div className="all-history-value"><strong>{formatMoney(record.normalizedPrice)}</strong><span>元/{normalizedLabels[record.normalizedUnit]}</span>{record.priceKind === "discount" && <em>优惠价</em>}</div><div className="all-history-footer"><div className="history-rating"><span>{record.quality ? "品质评级" : "补充评级"}</span><StarRating value={record.quality} onChange={(quality) => void props.onQuality(record.id, quality)} />{record.quality && <button disabled={props.loading} onClick={() => void props.onQuality(record.id, undefined)}>清除</button>}</div><div className="history-buttons"><button disabled={props.loading} onClick={() => props.onEdit(record)}>编辑</button><button disabled={props.loading} onClick={() => props.onDelete(record.id)}>删除</button></div></div></article>; })}</div>{visibleRecords.length < records.length && <button className="price-load-more" onClick={() => setVisibleCount((count) => count + historyPageSize)}>加载更多 · 还有 {records.length - visibleRecords.length} 条</button>}</> : <div className="price-empty compact">还没有菜价记录。</div>}</section></div>;
 }
 
 function PriceEditor(props: {
@@ -444,9 +448,10 @@ function PriceEditor(props: {
 
   return (
     <form className="price-stack price-editor" onSubmit={(event) => void submit(event, false)}>
-      <SubpageHeader title={props.editRecord ? "编辑价格记录" : "记录菜价"} eyebrow={savedCount ? `本次已记录 ${savedCount} 项` : "QUICK ENTRY"} onBack={props.onBack} />
+      <SubpageHeader title={props.editRecord ? "编辑价格记录" : "记录菜价"} eyebrow={savedCount ? `本次已记录 ${savedCount} 项` : "记下今天买到的好价格"} onBack={props.onBack} />
       {lastSaved && <div className="save-undo">上一项已保存 <button type="button" onClick={() => void undoSaved()}>恢复表单</button></div>}
       <section className="card price-form-card catalog-card">
+        <div className="price-form-heading"><h3>买了什么，在哪里买</h3><p>选择常用商品和店铺，也可以直接输入。</p></div>
         <div className="catalog-block">
           <CatalogInput inputRef={productInput} kind="product" label="商品" placeholder="搜索或添加商品" value={draft.productName} items={props.catalog.products.map((item) => item.name)} onChange={(value) => setDraft({ ...draft, productName: value })} />
           {commonProducts(props.catalog).length > 0 && <div className="quick-pick"><div className="quick-pick-head"><span>最近使用</span><small>近 30 天</small></div><div className="product-pick-grid">{commonProducts(props.catalog).slice(0, 8).map((product) => <button type="button" key={product.id} className={sameName(draft.productName, product.name) ? "selected" : ""} aria-pressed={sameName(draft.productName, product.name)} onClick={() => setDraft({ ...draft, productName: product.name })}><ProductIcon product={product} compact /><span>{product.name}</span></button>)}</div></div>}
@@ -459,12 +464,14 @@ function PriceEditor(props: {
       </section>
 
       <section className="card price-form-card">
+        <div className="price-form-heading"><h3>这次花了多少</h3><p>按标签单价或实际支付总价填写，自动换算。</p></div>
         <Segmented value={draft.entryMode} options={[{ value: "unit_price", label: "按单价" }, { value: "total_price", label: "按总价" }]} onChange={(value) => setDraft({ ...draft, entryMode: value as PriceDraft["entryMode"] })} />
         {draft.entryMode === "unit_price" ? <div className="unit-price-fields"><div className="price-number-row"><label>单价<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} /></label><UnitSelect value={draft.unit} prefix="元 /" onChange={(unit) => setDraft({ ...draft, unit, referenceUnit: unit })} /></div><label>购买数量（选填）<span className="quantity-input"><input inputMode="decimal" type="number" min="0" step="0.001" placeholder="不知道可留空" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /><em>{unitLabel(draft.unit)}</em></span></label></div> : <div className="price-total-grid"><label>总价（元）<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" value={draft.totalPrice} onChange={(event) => setDraft({ ...draft, totalPrice: event.target.value })} /></label><label>数量<input inputMode="decimal" type="number" min="0" step="0.001" placeholder="0" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /></label><UnitSelect value={draft.unit} onChange={(unit) => setDraft({ ...draft, unit, referenceUnit: unit })} /></div>}
         <div className={`normalized-preview ${normalized ? "ready" : ""}`}><div><span>统一单价</span>{purchaseTotal > 0 && <small>本次合计 {formatMoney(purchaseTotal)} 元</small>}</div><strong>{normalized ? `${formatMoney(normalized.price)} 元 / ${normalizedLabels[normalized.unit]}` : "填写后自动换算"}</strong></div>
       </section>
 
       <section className="card price-form-card">
+        <div className="price-form-heading"><h3>补充购买信息</h3></div>
         <Segmented value={draft.priceKind} options={[{ value: "regular", label: "日常价" }, { value: "discount", label: "优惠价" }]} onChange={(value) => setDraft({ ...draft, priceKind: value as PriceDraft["priceKind"], referencePrice: value === "regular" ? "" : draft.referencePrice })} />
         {draft.priceKind === "discount" && <div className="reference-row"><label>原价（选填）<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="不知道可留空" value={draft.referencePrice} onChange={(event) => setDraft({ ...draft, referencePrice: event.target.value })} /></label><UnitSelect value={draft.referenceUnit} prefix="元 /" onChange={(referenceUnit) => setDraft({ ...draft, referenceUnit })} /></div>}
         <label>购买时间<input type="datetime-local" value={draft.purchasedAt} onChange={(event) => setDraft({ ...draft, purchasedAt: event.target.value })} /></label>
@@ -501,17 +508,17 @@ function ProductDetail(props: {
   if (!product) return <div className="price-stack"><SubpageHeader title="商品不存在" eyebrow="PRICE" onBack={props.onBack} /></div>;
 
   return (
-    <div className="price-stack">
-      <SubpageHeader title={product.name} eyebrow="PRICE MEMORY" onBack={props.onBack} />
-      <section className="price-summary-card"><ProductIcon product={product} large /><div><span>各店最新价格</span><strong>{prices.length ? `${formatMoney(Math.min(...prices))}—${formatMoney(Math.max(...prices))}` : "暂无记录"}</strong><small>{prices.length ? `元 / ${normalizedLabels[unit]} · ${latest.length} 家店` : "记录一次后即可开始比较"}</small></div></section>
+    <div className="price-stack product-detail">
+      <SubpageHeader title={product.name} eyebrow="看看哪里买更合适" onBack={props.onBack} />
+      <section className="price-summary-card"><ProductIcon product={product} large /><div><span>各店最新价格</span><strong>{prices.length ? `${formatMoney(Math.min(...prices))}—${formatMoney(Math.max(...prices))}` : "暂无记录"}</strong><small>{prices.length ? `元 / ${normalizedLabels[unit]} · ${latest.length} 家店` : "记录一次后即可开始比较"}</small></div><div className="price-summary-foot"><span>{allRecords.length} 条购买记录</span><span>按各店最近一次报价比较</span></div></section>
       {units.length > 1 && <div className="unit-tabs">{units.map((item) => <button key={item} className={unit === item ? "active" : ""} onClick={() => setUnit(item)}>{normalizedLabels[item]}</button>)}</div>}
-      <div className="detail-actions"><button onClick={props.onRecord}>＋ 记录新价格</button><button onClick={props.onCompare}>⌁ 现场比价</button></div>
+      <div className="detail-actions"><button onClick={props.onRecord}><span aria-hidden="true">＋</span>记录新价格</button><button onClick={props.onCompare}>现场比价</button></div>
 
-      <section className="price-section"><div className="price-section-head"><div><span>LATEST BY STORE</span><h2>各店最新价格</h2></div></div>{latest.length ? <div className="store-price-list">{latest.map((record) => <article key={record.id} className={isOlder(record.purchasedAt) ? "stale" : ""}><StoreIcon store={storeByID[record.storeId]} /><div className="store-price-main"><h3>{storeByID[record.storeId]?.name ?? "未知店铺"}</h3><p>{formatPurchaseDate(record.purchasedAt)} · {memberByID[record.memberId]?.name ?? "家庭成员"}{isOlder(record.purchasedAt) && <em>较早记录</em>}</p><p className="purchase-detail">{entryDescription(record)}</p><div className="quality-line"><StarRating value={record.quality} onChange={(quality) => void props.onQuality(record.id, quality)} /><button onClick={() => void props.onQuality(record.id, undefined)}>{record.quality ? "清除" : "补充品质"}</button></div></div><div className="store-price-value"><strong>{formatMoney(record.normalizedPrice)}</strong><span>元/{normalizedLabels[record.normalizedUnit]}</span>{record.priceKind === "discount" && <em>优惠价{record.referencePrice ? ` · 原价 ${formatMoney(record.referencePrice)} 元/${unitLabel(record.referenceUnit)}` : " · 无原价"}</em>}</div></article>)}</div> : <div className="price-empty compact">还没有可比较的店铺价格。</div>}</section>
+      <section className="price-section"><div className="price-section-head"><div><h2>各店最新价格</h2><p className="price-section-description">从低到高排列，留意购买日期和品质。</p></div></div>{latest.length ? <div className="store-price-list">{latest.map((record) => <article key={record.id} className={`${isOlder(record.purchasedAt) ? "stale" : ""} ${record.id === latest[0]?.id ? "lowest-price" : ""}`}><StoreIcon store={storeByID[record.storeId]} /><div className="store-price-main"><h3>{storeByID[record.storeId]?.name ?? "未知店铺"}</h3><p>{formatPurchaseDate(record.purchasedAt)} · {memberByID[record.memberId]?.name ?? "家庭成员"}{isOlder(record.purchasedAt) && <em>较早记录</em>}</p><p className="purchase-detail">{entryDescription(record)}</p><div className="quality-line"><StarRating value={record.quality} onChange={(quality) => void props.onQuality(record.id, quality)} /><button onClick={() => void props.onQuality(record.id, undefined)}>{record.quality ? "清除" : "补充品质"}</button></div></div><div className="store-price-value"><strong>{formatMoney(record.normalizedPrice)}</strong><span>元/{normalizedLabels[record.normalizedUnit]}</span>{record.priceKind === "discount" && <em>优惠价{record.referencePrice ? ` · 原价 ${formatMoney(record.referencePrice)} 元/${unitLabel(record.referenceUnit)}` : " · 无原价"}</em>}</div></article>)}</div> : <div className="price-empty compact">还没有可比较的店铺价格。</div>}</section>
 
       <PriceTrend records={records} stores={props.catalog.stores} />
 
-      <section className="price-section"><button className="history-toggle" onClick={() => setHistoryOpen((value) => !value)}><span><b>历史记录与纠错</b><small>{allRecords.length} 条记录，按购买时间倒序</small></span><em>{historyOpen ? "⌃" : "⌄"}</em></button>{historyOpen && <div className="price-history">{allRecords.map((record) => <article key={record.id}><div><b>{storeByID[record.storeId]?.name ?? "未知店铺"}</b><span>{formatPurchaseDate(record.purchasedAt)} · {entryDescription(record)}</span></div><strong>{formatMoney(record.normalizedPrice)} 元/{normalizedLabels[record.normalizedUnit]}</strong><div className="history-buttons"><button disabled={props.loading} onClick={() => props.onEdit(record.id)}>编辑</button><button disabled={props.loading} onClick={() => props.onDelete(record.id)}>删除</button></div></article>)}</div>}</section>
+      <section className="price-section"><button className="history-toggle" aria-expanded={historyOpen} onClick={() => setHistoryOpen((value) => !value)}><span><b>历史记录与纠错</b><small>{allRecords.length} 条记录，按购买时间倒序</small></span><em>{historyOpen ? "⌃" : "⌄"}</em></button>{historyOpen && <div className="price-history">{allRecords.map((record) => <article key={record.id}><div><b>{storeByID[record.storeId]?.name ?? "未知店铺"}</b><span>{formatPurchaseDate(record.purchasedAt)} · {entryDescription(record)}</span></div><strong>{formatMoney(record.normalizedPrice)} 元/{normalizedLabels[record.normalizedUnit]}</strong><div className="history-buttons"><button disabled={props.loading} onClick={() => props.onEdit(record.id)}>编辑</button><button disabled={props.loading} onClick={() => props.onDelete(record.id)}>删除</button></div></article>)}</div>}</section>
     </div>
   );
 }
@@ -523,7 +530,22 @@ function ComparePrice({ catalog, productId, onBack, onRecord }: { catalog: Price
   const matching = normalized ? latestByStore(catalog.records.filter((record) => record.productId === productId && record.normalizedUnit === normalized.unit)).sort((left, right) => left.normalizedPrice - right.normalizedPrice) : [];
   const lowest = matching[0];
   const highest = matching[matching.length - 1];
-  return <div className="price-stack"><SubpageHeader title="现场比价" eyebrow={product?.name ?? "PRICE CHECK"} onBack={onBack} /><section className="card compare-card"><Segmented value={draft.entryMode} options={[{ value: "unit_price", label: "按单价" }, { value: "total_price", label: "按总价" }]} onChange={(value) => setDraft({ ...draft, entryMode: value as PriceDraft["entryMode"] })} />{draft.entryMode === "unit_price" ? <div className="price-number-row"><label>标签单价<input type="number" inputMode="decimal" min="0" step="0.01" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} /></label><UnitSelect value={draft.unit} prefix="元 /" onChange={(unit) => setDraft({ ...draft, unit })} /></div> : <div className="price-total-grid"><label>总价（元）<input type="number" inputMode="decimal" min="0" step="0.01" value={draft.totalPrice} onChange={(event) => setDraft({ ...draft, totalPrice: event.target.value })} /></label><label>数量<input type="number" inputMode="decimal" min="0" step="0.001" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /></label><UnitSelect value={draft.unit} onChange={(unit) => setDraft({ ...draft, unit })} /></div>}</section>{normalized && <section className="compare-result"><span>换算结果</span><strong>{formatMoney(normalized.price)} 元 / {normalizedLabels[normalized.unit]}</strong>{lowest ? <div className="compare-lines"><p className={normalized.price <= lowest.normalizedPrice ? "better" : ""}>{differenceFrom(normalized.price, lowest.normalizedPrice, "当前最低价", normalized.unit)}</p>{highest && highest.id !== lowest.id && <p>{differenceFrom(normalized.price, highest.normalizedPrice, "当前最高价", normalized.unit)}</p>}</div> : <p>还没有相同单位的历史价格，这次记录会成为第一条参考。</p>}<button onClick={() => onRecord(draft)}>记录此价格</button></section>}</div>;
+  const lowestStore = catalog.stores.find((store) => store.id === lowest?.storeId);
+  return (
+    <div className="price-stack compare-page">
+      <SubpageHeader title="现场比价" eyebrow={product?.name ?? "商品比价"} onBack={onBack} />
+      <section className="card compare-card">
+        <div className="price-form-heading"><h3>眼前这个价格，划算吗？</h3><p>输入标签价格，和家里记下的各店报价比一比。</p></div>
+        <Segmented value={draft.entryMode} options={[{ value: "unit_price", label: "按单价" }, { value: "total_price", label: "按总价" }]} onChange={(value) => setDraft({ ...draft, entryMode: value as PriceDraft["entryMode"] })} />
+        {draft.entryMode === "unit_price" ? <div className="price-number-row"><label>标签单价<input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} /></label><UnitSelect value={draft.unit} prefix="元 /" onChange={(unit) => setDraft({ ...draft, unit })} /></div> : <div className="price-total-grid"><label>总价（元）<input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0.00" value={draft.totalPrice} onChange={(event) => setDraft({ ...draft, totalPrice: event.target.value })} /></label><label>数量<input type="number" inputMode="decimal" min="0" step="0.001" placeholder="0" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} /></label><UnitSelect value={draft.unit} onChange={(unit) => setDraft({ ...draft, unit })} /></div>}
+      </section>
+      {normalized ? <section className="compare-result" aria-live="polite">
+        <span>统一单价</span><strong>{formatMoney(normalized.price)} <small>元 / {normalizedLabels[normalized.unit]}</small></strong>
+        {lowest ? <div className="compare-lines"><p className={normalized.price <= lowest.normalizedPrice ? "better" : ""}>{differenceFrom(normalized.price, lowest.normalizedPrice, "当前最低价", normalized.unit)}</p><p>{lowestStore?.name ?? "已记录店铺"} · {formatMoney(lowest.normalizedPrice)} 元/{normalizedLabels[normalized.unit]} · {formatPurchaseDate(lowest.purchasedAt)}</p>{highest && highest.id !== lowest.id && <p>{differenceFrom(normalized.price, highest.normalizedPrice, "当前最高价", normalized.unit)}</p>}</div> : <p>还没有相同单位的历史价格，这次记录会成为第一条参考。</p>}
+        <button onClick={() => onRecord(draft)}>记录此价格</button>
+      </section> : <div className="compare-placeholder"><span aria-hidden="true">≈</span><h3>不同规格，也能轻松比较</h3><p>填写价格和单位后，这里会自动显示换算结果。<br />按总价比较时，还需要填写购买数量。</p></div>}
+    </div>
+  );
 }
 
 function PriceTrend({ records, stores }: { records: PriceRecord[]; stores: PriceStore[] }) {
@@ -531,18 +553,36 @@ function PriceTrend({ records, stores }: { records: PriceRecord[]; stores: Price
   const visible = records.filter((record) => storeID === "all" || record.storeId === storeID).sort((left, right) => left.purchasedAt.localeCompare(right.purchasedAt));
   const usedStores = stores.filter((store) => records.some((record) => record.storeId === store.id));
   const width = 520;
-  const height = 190;
-  const padding = 28;
+  const height = 230;
+  const left = 48, right = 16, top = 22, bottom = 36;
   const times = visible.map((record) => new Date(record.purchasedAt).getTime());
   const values = visible.map((record) => record.normalizedPrice);
   const minTime = Math.min(...times);
   const maxTime = Math.max(...times);
   const minimum = values.length ? Math.min(...values) : 0;
   const maximum = values.length ? Math.max(...values) : 1;
-  const x = (record: PriceRecord) => maxTime === minTime ? width / 2 : padding + (new Date(record.purchasedAt).getTime() - minTime) / (maxTime - minTime) * (width - padding * 2);
-  const y = (record: PriceRecord) => maximum === minimum ? height / 2 : padding + (maximum - record.normalizedPrice) / (maximum - minimum) * (height - padding * 2);
-  const colors = ["#d36f57", "#4d9881", "#6f88bb", "#c18a45", "#946da8"];
-  return <section className="price-section trend-section"><div className="price-section-head"><div><span>PRICE TREND</span><h2>价格趋势</h2></div><select value={storeID} onChange={(event) => setStoreID(event.target.value)}><option value="all">全部店铺</option>{usedStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>{visible.length < 2 ? <div className="price-empty compact">记录不足，继续记录后可查看变化。</div> : <><svg className="price-trend" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="商品价格趋势图"><line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="trend-axis" />{usedStores.filter((store) => storeID === "all" || store.id === storeID).map((store, index) => { const points = visible.filter((record) => record.storeId === store.id); return <g key={store.id}><polyline points={points.map((record) => `${x(record)},${y(record)}`).join(" ")} fill="none" stroke={colors[index % colors.length]} strokeWidth="3" />{points.map((record) => <circle key={record.id} cx={x(record)} cy={y(record)} r={record.priceKind === "discount" ? 6 : 4} fill={record.priceKind === "discount" ? "#fff" : colors[index % colors.length]} stroke={colors[index % colors.length]} strokeWidth="3" />)}</g>; })}</svg><div className="trend-legend">{usedStores.filter((store) => storeID === "all" || store.id === storeID).map((store, index) => <span key={store.id}><i style={{ background: colors[index % colors.length] }} />{store.name}</span>)}<em>空心大点为优惠价</em></div></>}</section>;
+  const margin = Math.max((maximum - minimum) * .15, .5);
+  const lower = Math.max(0, minimum - margin);
+  const upper = maximum + margin;
+  const x = (record: PriceRecord) => maxTime === minTime ? (left + width - right) / 2 : left + (new Date(record.purchasedAt).getTime() - minTime) / (maxTime - minTime) * (width - left - right);
+  const y = (price: number) => top + (upper - price) / (upper - lower) * (height - top - bottom);
+  const colors = ["#486aa2", "#4c8b78", "#b0813d", "#9476ac", "#b76771"];
+  const storeColor = (id: string) => colors[usedStores.findIndex((store) => store.id === id) % colors.length];
+  const selectedStores = usedStores.filter((store) => storeID === "all" || store.id === storeID);
+  const dateLabel = (value: number) => new Date(value).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+  return (
+    <section className="price-section trend-section">
+      <div className="price-section-head"><div><h2>价格趋势</h2><p className="price-section-description">{records[0] ? `元 / ${normalizedLabels[records[0].normalizedUnit]}` : "记录价格的变化"}</p></div><select aria-label="筛选趋势店铺" value={storeID} onChange={(event) => setStoreID(event.target.value)}><option value="all">全部店铺</option>{usedStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>
+      {visible.length < 2 ? <div className="price-empty compact">再记一次价格，就能看到变化趋势。</div> : <>
+        <svg className="price-trend" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="商品价格趋势图">
+          {[lower, (lower + upper) / 2, upper].map((value) => <g key={value}><line x1={left} x2={width - right} y1={y(value)} y2={y(value)} className="trend-grid" /><text x={left - 9} y={y(value) + 4} textAnchor="end" className="trend-label">{value.toFixed(1)}</text></g>)}
+          <text x={left} y={height - 10} className="trend-label">{dateLabel(minTime)}</text>{maxTime !== minTime && <text x={width - right} y={height - 10} textAnchor="end" className="trend-label">{dateLabel(maxTime)}</text>}
+          {selectedStores.map((store) => { const points = visible.filter((record) => record.storeId === store.id); return <g key={store.id}><polyline points={points.map((record) => `${x(record)},${y(record.normalizedPrice)}`).join(" ")} fill="none" stroke={storeColor(store.id)} strokeWidth="2.5" strokeLinejoin="round" />{points.map((record) => <circle key={record.id} cx={x(record)} cy={y(record.normalizedPrice)} r={record.priceKind === "discount" ? 5 : 3.5} fill={record.priceKind === "discount" ? "#fff" : storeColor(store.id)} stroke={storeColor(store.id)} strokeWidth="2"><title>{store.name}，{formatPurchaseDate(record.purchasedAt)}，{formatMoney(record.normalizedPrice)} 元/{normalizedLabels[record.normalizedUnit]}</title></circle>)}</g>; })}
+        </svg>
+        <div className="trend-legend">{selectedStores.map((store) => <span key={store.id}><i style={{ background: storeColor(store.id) }} />{store.name}</span>)}<em>空心圆表示优惠价</em></div>
+      </>}
+    </section>
+  );
 }
 
 function CatalogInput({ kind, label, placeholder, value, items, onChange, inputRef }: { kind: "product" | "store"; label: string; placeholder: string; value: string; items: string[]; onChange: (value: string) => void; inputRef?: RefObject<HTMLInputElement | null> }) {
@@ -553,11 +593,11 @@ function CatalogInput({ kind, label, placeholder, value, items, onChange, inputR
 }
 
 function Segmented({ value, options, onChange }: { value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
-  return <div className="price-segmented">{options.map((option) => <button type="button" key={option.value} className={value === option.value ? "active" : ""} onClick={() => onChange(option.value)}>{option.label}</button>)}</div>;
+  return <div className="price-segmented">{options.map((option) => <button type="button" key={option.value} aria-pressed={value === option.value} className={value === option.value ? "active" : ""} onClick={() => onChange(option.value)}>{option.label}</button>)}</div>;
 }
 
 function UnitSelect({ value, onChange, prefix = "" }: { value: PriceUnit; onChange: (unit: PriceUnit) => void; prefix?: string }) {
-  return <label>单位<select value={value} onChange={(event) => onChange(event.target.value as PriceUnit)}>{unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{prefix}{unit.label}</option>)}</select></label>;
+  return <label>单位<select aria-label="单位" value={value} onChange={(event) => onChange(event.target.value as PriceUnit)}>{unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{prefix}{unit.label}</option>)}</select></label>;
 }
 
 function StarRating({ value, onChange }: { value?: number; onChange: (value: number) => void }) {
@@ -565,14 +605,14 @@ function StarRating({ value, onChange }: { value?: number; onChange: (value: num
 }
 
 function PriceHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return <div className="price-heading"><span>FAMILY MARKET NOTE</span><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>;
+  return <div className="price-heading"><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>;
 }
 
 function SubpageHeader({ title, eyebrow, onBack }: { title: string; eyebrow: string; onBack: () => void }) {
   return <div className="price-subhead"><button onClick={onBack} aria-label="返回"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button><div><span>{eyebrow}</span><h2>{title}</h2></div></div>;
 }
 
-function ProductIcon({ product, large = false, compact = false }: { product: Product; large?: boolean; compact?: boolean }) {
+export function ProductIcon({ product, large = false, compact = false }: { product: Product; large?: boolean; compact?: boolean }) {
   const lineIcon = productLineIconAsset(product.name);
   const sizeClasses = `${large ? "large" : ""} ${compact ? "compact" : ""}`;
   const style = { "--product-line-source": `url("${lineIcon.source}")` } as CSSProperties;

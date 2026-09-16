@@ -7,6 +7,7 @@ import { LocalBackupPanel } from "./LocalBackupPanel";
 import { downloadJSON } from "./download";
 import { ServerAddressForm } from "./ServerAddressForm";
 import { configuredBackend } from "./config";
+import { sleepAxis, sleepCurve, sleepMinutes, sleepTick } from "./sleepChart";
 import { preserveLegacyCache, publishBackupStatus, saveBackup } from "./backup";
 import type { Archive, DayResult, Family, FamilyBackup, Member, PendingChange, PendingExemption, RuleTier, Settings, WeekSummary } from "./types";
 import { requestLiveUpdateCheck } from "./updater";
@@ -217,6 +218,7 @@ export default function App() {
   function changeTab(nextTab: Tab) {
     setSettingsSection("root");
     setTab(nextTab);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
 
   async function run(action: () => Promise<Family>, success: string) {
@@ -292,7 +294,7 @@ export default function App() {
     <div className="app-shell">
       {tab !== "prices" && <header className="topbar">
         <div>
-          <span className="eyebrow">{family.activeWeek.weekStart} — {family.activeWeek.weekEnd}</span>
+          <span className="eyebrow">{reportDate(family.activeWeek.weekStart, true)} 至 {reportDate(family.activeWeek.weekEnd)}</span>
           <h1>{family.name}</h1>
         </div>
         <div className="topbar-profile"><SyncIndicator state={syncState} lastSyncedAt={lastSyncedAt} /><div className="avatar">{family.currentMember.name.slice(0, 1)}</div></div>
@@ -308,7 +310,7 @@ export default function App() {
         {tab === "settings" && <SettingsView family={family} backendURL={backendURL} joinCode={joinCode} loading={loading} section={settingsSection} onSectionChange={setSettingsSection} onSaveProfile={(name) => run(() => client.saveProfile(name), "个人信息已更新")} onSave={(settings) => run(() => client.saveSettings(settings), "本周设置已保存")} onCompleteReview={() => run(() => client.completeRewardReview(), "已完成本轮 30 天规则复盘")} onExport={exportBackup} onRestore={(backup) => run(() => client.restoreFamily(backup), "家庭数据已从备份恢复")} onExit={clearSession} />}
       </main>
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" aria-label="主导航">
         <NavButton active={tab === "home"} label="今天" icon="☾" onClick={() => changeTab("home")} />
         <NavButton active={tab === "records"} label="记录" icon="✓" badge={reviewCount} onClick={() => changeTab("records")} />
         <NavButton active={tab === "prices"} label="菜价" icon="⌕" onClick={() => changeTab("prices")} />
@@ -324,7 +326,7 @@ function Startup({ backendURL, loading, error, onRetry, onReset }: { backendURL:
   return (
     <div className="startup-page">
       <div className="moon-mark"><span>☾</span></div>
-      <p className="eyebrow">TWO PEOPLE · ONE SMALL PROMISE</p>
+      <p className="eyebrow">两个人，一起养成好习惯</p>
       <h1>一起早点睡</h1>
       {!error ? (
         <div className="startup-status"><i /><span>正在恢复你们的早睡计划…</span></div>
@@ -420,21 +422,22 @@ function Setup(props: {
   return (
     <div className="setup-page">
       <div className="moon-mark"><span>☾</span></div>
-      <p className="eyebrow">TWO PEOPLE · ONE SMALL PROMISE</p>
+      <p className="eyebrow">两个人，一起养成好习惯</p>
       <h1>一起早点睡</h1>
-      <p className="intro">手机号作为稳定身份 ID。重新安装后，配置同一服务器并输入原手机号即可恢复家庭。</p>
+      <p className="intro">给忙碌的一天画个句号。<br />和在意的人，从今晚开始，早点休息。</p>
 
       <section className="setup-card">
-        <label>后端地址</label>
+        <div className="setup-card-heading"><h2>开启你们的早睡计划</h2><p>已有家庭？输入原手机号即可找回。</p></div>
+        <label htmlFor="setup-server">服务器地址</label>
         <div className="inline-field">
-          <input value={props.backendURL} onChange={(event) => { props.setBackendURL(event.target.value); setNewUser(false); }} placeholder="http://192.168.1.10:8080" />
+          <input id="setup-server" value={props.backendURL} onChange={(event) => { props.setBackendURL(event.target.value); setNewUser(false); }} placeholder="http://192.168.1.10:8080" />
           <button type="button" className="ghost small" onClick={ping} disabled={props.loading || !props.backendURL}>测试</button>
         </div>
         <p className={pingState ? "connection good" : "connection"}>{pingState || "真机请填写电脑或服务器可访问的地址"}</p>
 
         {!newUser ? (
           <form onSubmit={identify}>
-            <label>手机号 / 用户 ID<input className="phone-input" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required maxLength={24} placeholder="例如 13800138000" /></label>
+            <label>手机号<input className="phone-input" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required maxLength={24} placeholder="输入你的手机号" /></label>
             {props.error && <div className="form-error">{props.error}</div>}
             <button className="primary wide" disabled={props.loading || !props.backendURL}>{props.loading ? "正在识别…" : "继续"}</button>
             <p className="trusted-auth">当前私人版本暂不验证短信验证码；部署到公网前应启用验证码。</p>
@@ -475,13 +478,14 @@ function Home({ family, loading, onCheckIn }: { family: Family; loading: boolean
   const familyLevel = scoreLevel(familyScore, personalMaximum * family.members.length);
   const personalLevel = scoreLevel(mySummary.totalScore, personalMaximum);
   return (
-    <div className="page-stack">
+    <div className="page-stack home-page">
+      <div className="home-greeting"><h2>把今天，轻轻放下。</h2><p>每一次早点睡，都是在照顾明天的自己。</p></div>
       <section className="hero-card">
-        <div className="stars">✦　·　✧</div>
-        <span className="eyebrow light">今晚的约定</span>
+        <div className="night-illustration" aria-hidden="true"><div className="moon-orbit" /><div className="night-moon" /><i /><i /><i /><i /></div>
+        <div className="hero-copy"><span className="eyebrow light">今晚的约定</span>
         <div className="ideal-time">{family.activeWeek.settings.idealTime}</div>
-        <p>理想入睡时间</p>
-        <button className="checkin-button" onClick={onCheckIn} disabled={loading}>记录现在时间</button>
+        <p>在这之前，说一声晚安</p></div>
+        <button className="checkin-button" onClick={onCheckIn} disabled={loading}><AppIcon name="☾" />{loading ? "正在记录…" : "我要睡了，记录此刻"}<span aria-hidden="true">↗</span></button>
         <span className="hint">凌晨 {family.activeWeek.settings.cutoffHour}:00 前会算作前一天晚上</span>
       </section>
 
@@ -499,8 +503,12 @@ function Home({ family, loading, onCheckIn }: { family: Family; loading: boolean
         <Stat label="家庭完成度" value={String(family.activeWeek.summary.completionRate)} suffix="%" />
       </section>
 
-      <section className="card">
-        <div className="section-title"><div><span className="eyebrow">THIS WEEK</span><h2>两个人的进度</h2></div><strong>{family.activeWeek.summary.completionRate}%</strong></div>
+      <section className="card together-card">
+        <div className="section-title"><div><h2>一起积攒好梦</h2><p className="section-subtitle">这一周，每一晚都算数</p></div><strong>{family.activeWeek.summary.completionRate}%</strong></div>
+        <div className="week-rhythm" aria-label="本周个人打卡进度">{dateRange(family.activeWeek.weekStart, family.activeWeek.weekEnd).map((date) => {
+          const recorded = Boolean(family.activeWeek.days?.find((day) => day.date === date)?.members[me.id]);
+          return <div key={date} className={recorded ? "completed" : ""} aria-label={`${date} ${recorded ? "已记录" : "未记录"}`}><span>{weekday(date)}</span><i>{recorded ? <AppIcon name="✓" /> : <AppIcon name="☾" />}</i><small>{date.slice(8)}</small></div>;
+        })}</div>
         <div className="progress"><span style={{ width: `${family.activeWeek.summary.completionRate}%` }} /></div>
         <div className="member-summaries">
           {family.members.map((member) => {
@@ -534,7 +542,7 @@ function Records({ family, loading, onCheckIn, onSave, onReview, onCancel, onExe
   return (
     <div className="page-stack">
       <section className="card exemption-budget">
-        <div className="section-title"><div><span className="eyebrow">MONTHLY EXEMPTION</span><h2>本月特殊情况豁免</h2></div><span className="quota-month">{exemptionUsage.month.slice(5)} 月</span></div>
+        <div className="section-title"><div><h2>本月特殊情况豁免</h2></div><span className="quota-month">{exemptionUsage.month.slice(5)} 月</span></div>
         <div className="quota-members">
           {family.members.map((member, index) => {
             const usage = exemptionUsage.members[member.id] ?? { approved: 0, pending: 0, remaining: 2 };
@@ -545,7 +553,7 @@ function Records({ family, loading, onCheckIn, onSave, onReview, onCancel, onExe
       </section>
       {(incoming.length > 0 || outgoing.length > 0 || incomingExemptions.length > 0 || outgoingExemptions.length > 0) && (
         <section className="approval-center">
-          <div className="section-title"><div><span className="eyebrow">CHECK TOGETHER</span><h2>双人确认</h2></div><span className="notification-count">{pending.length + exemptions.length}</span></div>
+          <div className="section-title"><div><h2>双人确认</h2></div><span className="notification-count">{pending.length + exemptions.length}</span></div>
           {incoming.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReview} />)}
           {outgoing.map((change) => <ApprovalItem key={change.id} change={change} members={family.members} canReview={false} loading={loading} onReview={onReview} onCancel={onCancel} />)}
           {incomingExemptions.map((change) => <ExemptionApprovalItem key={change.id} change={change} members={family.members} canReview loading={loading} onReview={onReviewExemption} />)}
@@ -554,7 +562,7 @@ function Records({ family, loading, onCheckIn, onSave, onReview, onCancel, onExe
       )}
 
       <section className="card records-card">
-        <div className="section-title"><div><span className="eyebrow">DAILY LOG</span><h2>本周记录</h2></div><span className="muted small-copy">编辑需对方确认</span></div>
+        <div className="section-title"><div><h2>本周记录</h2></div><span className="muted small-copy">编辑需对方确认</span></div>
         <div className="day-list">
           {days.map((day) => {
             const result = (family.activeWeek.days ?? []).find((item) => item.date === day);
@@ -626,7 +634,7 @@ function EditSheet({ editor, loading, onClose, onSave, onExempt }: { editor: { d
     <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className="edit-sheet" role="dialog" aria-modal="true" aria-label="编辑入睡时间">
         <div className="sheet-handle" />
-        <div className="sheet-title"><div><span className="eyebrow">SLEEP TIME</span><h2>{editor.hasRecord ? "修改打卡" : "补充打卡"}</h2></div><button onClick={onClose} aria-label="关闭">×</button></div>
+        <div className="sheet-title"><div><h2>{editor.hasRecord ? "修改打卡" : "补充打卡"}</h2></div><button onClick={onClose} aria-label="关闭">×</button></div>
         <div className="selected-date"><span>日期</span><strong>{formatDate(editor.date)} · {weekday(editor.date)}</strong></div>
         <div className="time-picker">
           <label>时<select value={hour} onChange={(event) => setHour(event.target.value)}>{hours.map((value) => <option key={value} value={String(value).padStart(2, "0")}>{String(value).padStart(2, "0")}</option>)}</select></label>
@@ -647,11 +655,11 @@ function WeeklyReports({ family }: { family: Family }) {
   const [expandedWeek, setExpandedWeek] = useState("");
   const previousWeek = archives.find((archive) => archive.weekEnd === addDateDays(family.activeWeek.weekStart, -1));
   return (
-    <div className="page-stack">
-      <div className="page-heading"><span className="eyebrow">WEEKLY RHYTHM</span><div className="page-heading-title"><h2>两个人的睡眠周报</h2></div><p>本周保留完整看板，历史周默认折叠。折线越靠上代表入睡越晚，目标线以下代表早于目标时间。</p></div>
+    <div className="page-stack weekly-page">
+      <div className="page-heading"><div className="page-heading-title"><h2>两个人的睡眠周报</h2></div><p>把早一点睡，慢慢变成习惯。</p></div>
       {previousWeek && <WeekComparison family={family} previous={previousWeek} />}
       <WeeklyCard title="本周进行中" weekStart={family.activeWeek.weekStart} weekEnd={family.activeWeek.weekEnd} rewardRuleVersion={family.activeWeek.rewardRuleVersion} days={family.activeWeek.days ?? []} summary={family.activeWeek.summary} settings={family.activeWeek.settings} members={family.members} current />
-      {archives.length === 0 ? <Empty text="还没有历史周报，完成第一周后这里会自动出现。" /> : <section className="history-weeks"><div className="history-weeks-head"><div><span className="eyebrow">HISTORY</span><h2>历史周报</h2></div><small>{archives.length} 周</small></div>{archives.map((archive) => <HistoryWeek key={archive.weekStart} archive={archive} members={family.members} expanded={expandedWeek === archive.weekStart} onToggle={() => setExpandedWeek((current) => current === archive.weekStart ? "" : archive.weekStart)} />)}</section>}
+      {archives.length === 0 ? <Empty text="还没有历史周报，完成第一周后这里会自动出现。" /> : <section className="history-weeks"><div className="history-weeks-head"><div><h2>历史周报</h2></div><small>{archives.length} 周</small></div>{archives.map((archive) => <HistoryWeek key={archive.weekStart} archive={archive} members={family.members} expanded={expandedWeek === archive.weekStart} onToggle={() => setExpandedWeek((current) => current === archive.weekStart ? "" : archive.weekStart)} />)}</section>}
     </div>
   );
 }
@@ -668,7 +676,7 @@ function WeekComparison({ family, previous }: { family: Family; previous: Archiv
   const timeDifference = current.averageMinutes !== null && last.averageMinutes !== null ? current.averageMinutes - last.averageMinutes : null;
   return (
     <section className="week-comparison">
-      <div className="week-comparison-head"><div><span className="eyebrow">WEEK OVER WEEK</span><h3>较上周同期</h3></div><small>均比较前 {elapsedDays} 天</small></div>
+      <div className="week-comparison-head"><div><h3>较上周同期</h3></div><small>均比较前 {elapsedDays} 天</small></div>
       <div className="week-comparison-grid">
         <ComparisonStat label="双人积分" value={`${current.score > 0 ? "+" : ""}${formatScore(current.score)} 分`} detail={differenceText(scoreDifference, "分")} positive={scoreDifference >= 0} />
         <ComparisonStat label="平均入睡" value={current.averageTime} detail={timeDifference === null ? "上周同期记录不足" : Math.abs(timeDifference) <= 5 ? "与上周基本持平" : timeDifference < 0 ? `提前 ${Math.abs(timeDifference)} 分钟` : `推迟 ${timeDifference} 分钟`} positive={timeDifference !== null && timeDifference <= 0} />
@@ -688,7 +696,7 @@ function HistoryWeek({ archive, members, expanded, onToggle }: { archive: Archiv
   return (
     <article className={`history-week ${expanded ? "expanded" : ""}`}>
       <button className="history-week-toggle" onClick={onToggle} aria-expanded={expanded}>
-        <div className="history-week-date"><span>{archive.weekStart.slice(5)} — {archive.weekEnd.slice(5)}</span><small>{members.map((member) => `${member.name} ${formatScore(archive.summary.members[member.id]?.totalScore ?? 0)} 分`).join(" · ")}</small></div>
+        <div className="history-week-date"><span>{reportDate(archive.weekStart)} 至 {reportDate(archive.weekEnd)}</span><small>{members.map((member) => `${member.name} ${formatScore(archive.summary.members[member.id]?.totalScore ?? 0)} 分`).join(" · ")}</small></div>
         <div className="history-week-numbers"><span><small>双人积分</small><b>{familyScore > 0 ? "+" : ""}{formatScore(familyScore)}</b></span><span><small>完成度</small><b>{archive.summary.completionRate}%</b></span><span><small>奖励参考</small><b>{reward.total} 元</b></span></div>
         <GradeBadge level={level} />
         <em>{expanded ? "⌃" : "⌄"}</em>
@@ -706,61 +714,73 @@ function WeeklyCard({ title, weekStart, weekEnd, rewardRuleVersion = "v4", days,
   const familyRequirement = reward.minimumCheckinDays > 0 ? `需两人都记录 ${reward.minimumCheckinDays} 天且达到 ${formatScore(reward.personalMinimum)} 分` : `需两人都至少达到 ${formatScore(reward.personalMinimum)} 分`;
   return (
     <section className={`card weekly-card ${current ? "current" : ""}`}>
-      <div className="report-head"><div><span>{title}</span><h3>{weekStart} — {weekEnd}</h3></div><GradeBadge level={familyLevel} /></div>
-      <div className={`family-score grade-${familyLevel.tone}`}><span>双人总分</span><strong>{familyScore > 0 ? "+" : ""}{formatScore(familyScore)}</strong><em>分 · {familyLevel.name}</em></div>
+      <div className="report-head"><div><span>{title}</span><h3>{reportDate(weekStart)} 至 {reportDate(weekEnd)}<small>{weekStart.slice(0, 4)}</small></h3></div><GradeBadge level={familyLevel} /></div>
+      <div className="report-overview"><div><span>双人积分</span><strong>{familyScore > 0 ? "+" : ""}{formatScore(familyScore)}<small>分</small></strong></div><div><span>共同完成度</span><strong>{summary.completionRate}<small>%</small></strong></div></div>
       <SleepChart weekStart={weekStart} weekEnd={weekEnd} days={days} members={members} idealTime={settings.idealTime} />
       <div className="report-members">
         {members.map((member, index) => {
           const memberSummary = summary.members[member.id] ?? { totalScore: 0, totalFine: 0, checkinDays: 0, averageSleepTime: "--:--" };
           const level = scoreLevel(memberSummary.totalScore, personalMaximum);
-          return <div key={member.id}><i style={{ background: memberColor(index) }} /><span>{member.name}<small>{memberSummary.checkinDays} 天 · 均值 {memberSummary.averageSleepTime || "--:--"}</small></span><ScoreTag score={memberSummary.totalScore} level={level} /><em>罚金 {memberSummary.totalFine} 元</em></div>;
+          return <div key={member.id}><i style={{ background: sleepMemberColor(index) }} /><span>{member.name}<small>{memberSummary.checkinDays} 天 · 平均 {memberSummary.averageSleepTime || "--:--"}</small></span><div className="report-member-score"><ScoreTag score={memberSummary.totalScore} level={level} /><small>罚金 {memberSummary.totalFine} 元</small></div></div>;
         })}
       </div>
       <div className="weekly-reward-result">
-        <div className="reward-result-head"><span>本周积分奖励参考</span><strong>{reward.total} 元</strong></div>
+        <div className="reward-result-head"><span>本周奖励参考</span><strong>{reward.total} <small>元</small></strong></div>
         <div className="reward-result-rows">
           {reward.personal.map((item) => <div key={item.member.id}><span>{item.member.name}的个人奖励<small>{item.eligible ? item.payer ? `由 ${item.payer.name} 转入` : "等待搭档加入" : item.recordedDays < reward.minimumCheckinDays ? `需记录 ${reward.minimumCheckinDays} 天 · 当前 ${item.recordedDays} 天` : `达到 ${formatScore(reward.personalMinimum)} 分解锁`}</small></span><b>{item.amount} 元</b></div>)}
           <div><span>双人累计奖励<small>{reward.familyEligible ? `合计 ${formatScore(reward.familyScore)} 分 · 双方各承担 ${reward.family / 2} 元` : familyRequirement}</small></span><b>{reward.family} 元</b></div>
         </div>
         <small className="reward-cap-note">奖励规则 {rewardRuleVersion.toUpperCase()} · 每周最高 300 元；罚金另行手工结算。</small>
       </div>
-      <div className="completion-line"><span>共同完成度</span><div><i style={{ width: `${summary.completionRate}%` }} /></div><strong>{summary.completionRate}%</strong></div>
     </section>
   );
 }
 
+function sleepMemberColor(index: number) {
+  return ["#4b78c4", "#a080bb", "#4c8b78"][index % 3];
+}
+
 function SleepChart({ weekStart, weekEnd, days, members, idealTime }: { weekStart: string; weekEnd: string; days: DayResult[]; members: Member[]; idealTime: string }) {
   const dates = dateRange(weekStart, weekEnd);
-  const width = 560;
-  const height = 230;
-  const left = 48;
-  const right = 18;
-  const top = 28;
-  const bottom = 42;
-  const minimum = 22 * 60;
-  const maximum = 26 * 60;
-  const x = (index: number) => left + index * ((width - left - right) / Math.max(1, dates.length - 1));
-  const y = (time: string) => {
-    const value = Math.min(maximum, Math.max(minimum, nightMinutes(time)));
-    return top + ((maximum - value) / (maximum - minimum)) * (height - top - bottom);
-  };
-  const ticks = ["22:00", "23:00", "00:00", "01:00", "02:00"];
+  const recordedDays = dates.filter((date) => days.some((day) => day.date === date && members.some((member) => day.members[member.id])));
+  const [selectedDate, setSelectedDate] = useState(() => recordedDays.at(-1) ?? dates[0]);
+  const selectedIndex = Math.max(0, dates.indexOf(selectedDate));
+  const selected = dates[selectedIndex];
+  const times = days.flatMap((day) => members.flatMap((member) => {
+    const record = day.members[member.id];
+    return dates.includes(day.date) && record && !record.exempt && record.time ? [record.time] : [];
+  }));
+  const { minimum, maximum, ticks } = sleepAxis(times, idealTime);
+  const width = 460, height = 194;
+  const left = 48, right = 14, top = 16, bottom = 14;
+  // Seven equally sized date targets align exactly with the plotted columns.
+  const column = (width - left - right) / dates.length;
+  const x = (index: number) => left + column * (index + .5);
+  const y = (minutes: number) => top + (maximum - minutes) / (maximum - minimum) * (height - top - bottom);
+  const goalY = y(sleepMinutes(idealTime));
   return (
     <div className="sleep-chart-wrap">
-      <div className="chart-legend">{members.map((member, index) => <span key={member.id}><i style={{ background: memberColor(index) }} />{member.name}</span>)}</div>
-      <svg className="sleep-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="每日入睡时间折线图">
-        {ticks.map((tick) => { const position = y(tick); return <g key={tick}><line x1={left} x2={width - right} y1={position} y2={position} className="chart-grid" /><text x={left - 8} y={position + 4} textAnchor="end" className="chart-y-label">{tick}</text></g>; })}
-        <line x1={left} x2={width - right} y1={y(idealTime)} y2={y(idealTime)} className="chart-goal" />
-        <text x={width - right - 4} y={y(idealTime) - 6} textAnchor="end" className="chart-goal-label">目标 {idealTime}</text>
-        {dates.map((date, index) => <text key={date} x={x(index)} y={height - 13} textAnchor="middle" className="chart-x-label">{weekday(date).slice(1)}</text>)}
+      <div className="sleep-chart-heading"><h4>入睡节奏</h4><span>虚线目标 {idealTime} · 越低越早</span></div>
+      <div className="sleep-chart-readout" aria-live="polite"><time dateTime={selected}>{reportDate(selected)}</time>{members.map((member, index) => {
+        const record = days.find((day) => day.date === selected)?.members[member.id];
+        return <span key={member.id}><i style={{ background: sleepMemberColor(index) }} /><span>{member.name}</span><b>{record?.exempt ? "已豁免" : record?.time || "未记录"}</b></span>;
+      })}</div>
+      <svg className="sleep-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="每日入睡时间折线图，使用下方日期按钮查看具体时间">
+        <rect x={left} y={goalY} width={width - left - right} height={height - bottom - goalY} className="chart-early-zone" rx="5" />
+        {ticks.map((tick) => <g key={tick}><line x1={left} x2={width - right} y1={y(tick)} y2={y(tick)} className="chart-grid" /><text x={left - 9} y={y(tick) + 4} textAnchor="end" className="chart-y-label">{sleepTick(tick)}</text></g>)}
+        <line x1={left} x2={width - right} y1={goalY} y2={goalY} className="chart-goal" />
+        <line x1={x(selectedIndex)} x2={x(selectedIndex)} y1={top} y2={height - bottom} className="chart-selected-guide" />
         {members.map((member, memberIndex) => {
+          const color = sleepMemberColor(memberIndex);
           const points = dates.map((date, index) => {
             const record = days.find((day) => day.date === date)?.members[member.id];
-            return record && !record.exempt && record.time ? { date, time: record.time, x: x(index), y: y(record.time) } : null;
+            return record && !record.exempt && record.time ? { date, time: record.time, x: x(index), y: y(sleepMinutes(record.time)) } : null;
           });
-          return <g key={member.id}>{points.map((point, index) => { const previous = index > 0 ? points[index - 1] : null; return point && <g key={point.date}>{previous && <line x1={previous.x} y1={previous.y} x2={point.x} y2={point.y} stroke={memberColor(memberIndex)} className="chart-line" />}<circle cx={point.x} cy={point.y} r="5" fill={memberColor(memberIndex)} className="chart-point" /><text x={point.x} y={point.y - 9} textAnchor="middle" fill={memberColor(memberIndex)} className="chart-time">{point.time}</text></g>; })}</g>;
+          return <g key={member.id}><path d={sleepCurve(points)} fill="none" stroke={color} className="chart-line" />{points.map((point, index) => point && <g key={point.date}>{index === selectedIndex && <circle cx={point.x} cy={point.y} r="9" fill={color} opacity=".12" />}<circle cx={point.x} cy={point.y} r={index === selectedIndex ? 4.5 : 3} fill="white" style={{ stroke: color }} className="chart-point"><title>{member.name}，{reportDate(point.date, true)}，{point.time}</title></circle></g>)}</g>;
         })}
+        {!times.length && <text x={width / 2 + 15} y={height / 2} textAnchor="middle" className="chart-empty-label">记录入睡时间后，轨迹会出现在这里</text>}
       </svg>
+      <div className="chart-days" style={{ paddingLeft: `${left / width * 100}%`, paddingRight: `${right / width * 100}%`, gridTemplateColumns: `repeat(${dates.length}, minmax(0, 1fr))` }}>{dates.map((date, index) => <button type="button" key={date} className={index === selectedIndex ? "selected" : ""} aria-pressed={index === selectedIndex} aria-label={`查看 ${reportDate(date, true)} 的入睡时间`} onClick={() => setSelectedDate(date)}>{weekday(date).slice(1)}</button>)}</div>
     </div>
   );
 }
@@ -771,6 +791,8 @@ function SettingsView({ family, backendURL, joinCode, loading, section, onSectio
   const owner = family.currentMember.role === "owner";
 
   useEffect(() => { setDraft(structuredClone(family.activeWeek.settings)); setDraftError(""); }, [family.activeWeek.settings]);
+
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [section]);
 
   function updateTier(kind: "weekdayTiers" | "weekendTiers", index: number, key: keyof RuleTier, value: string) {
     setDraft((current) => {
@@ -800,7 +822,7 @@ function SettingsView({ family, backendURL, joinCode, loading, section, onSectio
   }
 
   if (section === "score") {
-    return <div className="page-stack"><SettingsBack eyebrow={owner ? "OWNER SETTINGS" : "CURRENT RULES"} title="本周积分规则" onBack={() => onSectionChange("root")} /><section className={`card rules-card ${owner ? "" : "readonly"}`}><p className="muted">{owner ? "保存后立即用新规则重算本周；已归档周报不会改变。时间与分数是积分锚点，区间内按实际分钟平滑计算到一位小数；罚金仍按整档计算。" : "以下是家庭创建者设置的本周具体规则。时间与分数是积分锚点，区间内按实际分钟平滑计算；罚金仍按整档计算。仅创建者可以修改。"}</p><div className="two-fields"><label>理想入睡<input type="time" step="300" disabled={!owner} value={draft.idealTime} onChange={(event) => { if (event.target.value) setDraft({ ...draft, idealTime: nearestFiveMinutes(event.target.value) }); }} /></label><label>凌晨归属截止<input type="number" min="0" max="11" disabled={!owner} value={draft.cutoffHour} onChange={(event) => setDraft({ ...draft, cutoffHour: Number(event.target.value) })} /></label></div><TierEditor title="工作日（周日—周四晚）" tiers={draft.weekdayTiers} disabled={!owner} onChange={(index, key, value) => updateTier("weekdayTiers", index, key, value)} /><TierEditor title="周末（周五、周六晚）" tiers={draft.weekendTiers} disabled={!owner} onChange={(index, key, value) => updateTier("weekendTiers", index, key, value)} />{owner && draftError && <div className="inline-error">{draftError}</div>}{owner && <button className="primary wide" disabled={loading} onClick={saveSettings}>保存并重算本周</button>}</section></div>;
+    return <div className="page-stack settings-page"><SettingsBack eyebrow={owner ? "创建者可编辑 · 保存后生效" : "家庭共用 · 本周生效"} title="本周积分规则" onBack={() => onSectionChange("root")} /><section className={`card rules-card ${owner ? "" : "readonly"}`}><p className="muted">{owner ? "保存后立即用新规则重算本周；已归档周报不会改变。时间与分数是积分锚点，区间内按实际分钟平滑计算到一位小数；罚金仍按整档计算。" : "以下是家庭创建者设置的本周具体规则。时间与分数是积分锚点，区间内按实际分钟平滑计算；罚金仍按整档计算。仅创建者可以修改。"}</p><div className="two-fields"><label>理想入睡<input type="time" step="300" disabled={!owner} value={draft.idealTime} onChange={(event) => { if (event.target.value) setDraft({ ...draft, idealTime: nearestFiveMinutes(event.target.value) }); }} /></label><label>凌晨归属截止<input type="number" min="0" max="11" disabled={!owner} value={draft.cutoffHour} onChange={(event) => setDraft({ ...draft, cutoffHour: Number(event.target.value) })} /></label></div><TierEditor title="工作日（周日—周四晚）" tiers={draft.weekdayTiers} disabled={!owner} onChange={(index, key, value) => updateTier("weekdayTiers", index, key, value)} /><TierEditor title="周末（周五、周六晚）" tiers={draft.weekendTiers} disabled={!owner} onChange={(index, key, value) => updateTier("weekendTiers", index, key, value)} />{owner && draftError && <div className="inline-error">{draftError}</div>}{owner && <button className="primary wide" disabled={loading} onClick={saveSettings}>保存并重算本周</button>}</section></div>;
   }
 
   if (section === "reward") {
@@ -820,7 +842,7 @@ function SettingsView({ family, backendURL, joinCode, loading, section, onSectio
   }
 
   const review = family.rewardReview;
-  return <div className="page-stack"><section className="card info-card"><span className="eyebrow">FAMILY</span><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl><button className="profile-edit" onClick={() => onSectionChange("profile")}>修改个人信息 ›</button></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">30-DAY REVIEW</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => onSectionChange("review")}>查看数据 ›</button></section><section className="card settings-menu"><span className="eyebrow">RULES & GUIDE</span><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p>{!owner && <button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>积分规则</b><small>查看本周理想时间、积分与罚金档位</small></span><em>›</em></button>}<button onClick={() => onSectionChange("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => onSectionChange("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><span className="eyebrow">DATA</span><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => onSectionChange("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><span className="eyebrow">OWNER SETTINGS</span><h2>创建者设置</h2><p className="muted">修改积分档位只影响当前活动周。</p><button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>编辑积分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<ServerAddressForm backendURL={backendURL} /><button className="exit-button" onClick={onExit}>退出此家庭（保留本机备份）</button></div>;
+  return <div className="page-stack settings-page"><section className="card info-card"><h2>{family.name}</h2><dl><div><dt>当前成员</dt><dd>{family.currentMember.name} · {owner ? "创建者" : "成员"}</dd></div>{family.currentMember.phone && <div><dt>手机号 ID</dt><dd>{family.currentMember.phone}</dd></div>}<div><dt>后端地址</dt><dd>{backendURL}</dd></div>{joinCode && <div><dt>家庭邀请码</dt><dd className="join-code">{joinCode}</dd></div>}</dl><button className="profile-edit" onClick={() => onSectionChange("profile")}>修改个人信息 ›</button></section><section className={`card review-card ${review?.due ? "due" : ""}`}><div><span className="eyebrow">一起回顾最近的睡眠习惯</span><h2>{review?.due ? "规则复盘已到期" : "30 天规则复盘"}</h2><p>{review?.due ? "一起回顾 30 天趋势、完成率、积分和罚金，再决定是否调整规则。" : `本周期已进行 ${30 - (review?.daysRemaining ?? 30)} 天，距离复盘还有 ${review?.daysRemaining ?? 30} 天。`}</p></div><button className="review-open" onClick={() => onSectionChange("review")}>查看数据 ›</button></section><section className="card settings-menu"><h2>规则与说明</h2><p className="muted">两位成员都可以查看；App 仅计算奖励参考金额，实际转账由双方手工完成。</p>{!owner && <button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>积分规则</b><small>查看本周理想时间、积分与罚金档位</small></span><em>›</em></button>}<button onClick={() => onSectionChange("reward")}><span className="settings-entry-icon reward">✦</span><span><b>奖励规则</b><small>个人奖励、双人累计奖励与付款方式</small></span><em>›</em></button><button onClick={() => onSectionChange("levels")}><span className="settings-entry-icon level">◐</span><span><b>等级说明</b><small>晨光、新芽、清风、守夜与重启</small></span><em>›</em></button></section><section className="card settings-menu"><h2>数据管理</h2><p className="muted">导出完整家庭备份；只有创建者可以恢复。</p><button onClick={() => onSectionChange("backup")}><span className="settings-entry-icon data">⇩</span><span><b>导出与恢复</b><small>保存 JSON 备份或恢复同一家庭</small></span><em>›</em></button></section>{owner && <section className="card settings-menu"><h2>创建者设置</h2><p className="muted">修改积分档位只影响当前活动周。</p><button onClick={() => onSectionChange("score")}><span className="settings-entry-icon">⌁</span><span><b>编辑积分规则</b><small>理想时间、积分与罚金档位</small></span><em>›</em></button></section>}<ServerAddressForm backendURL={backendURL} /><button className="exit-button" onClick={onExit}>退出此家庭（保留本机备份）</button></div>;
 }
 
 function ProfileView({ member, loading, onSave, onBack }: { member: Member; loading: boolean; onSave: (name: string) => void; onBack: () => void }) {
@@ -838,7 +860,7 @@ function ProfileView({ member, loading, onSave, onBack }: { member: Member; load
     onSave(value);
   }
 
-  return <div className="page-stack"><SettingsBack eyebrow="MY PROFILE" title="个人信息" onBack={onBack} /><section className="card profile-card"><div className="profile-avatar" aria-hidden="true">{(name.trim() || member.name).slice(0, 1)}</div><form className="profile-form" onSubmit={submit}><label>称呼<input autoComplete="nickname" maxLength={20} value={name} onChange={(event) => setName(event.target.value)} placeholder="请输入你的称呼" /></label><label>手机号 ID<input className="readonly-field" value={member.phone ?? ""} readOnly /></label><small>手机号用于恢复身份，当前不可直接修改；头像会跟随称呼首字更新。</small>{profileError && <div className="inline-error">{profileError}</div>}<button className="primary wide" disabled={loading || name.trim() === member.name} type="submit">保存个人信息</button></form></section></div>;
+  return <div className="page-stack settings-page"><SettingsBack eyebrow="让家人更好地认识你" title="个人信息" onBack={onBack} /><section className="card profile-card"><div className="profile-identity"><div className="profile-avatar" aria-hidden="true">{(name.trim() || member.name).slice(0, 1)}</div><div><h3>{name.trim() || member.name}</h3><p>{member.role === "owner" ? "家庭创建者" : "家庭成员"} · 一起养成好习惯</p></div></div><form className="profile-form" onSubmit={submit}><label>称呼<input autoComplete="nickname" maxLength={20} value={name} onChange={(event) => setName(event.target.value)} placeholder="请输入你的称呼" /></label><label>手机号 ID<input className="readonly-field" value={member.phone ?? ""} readOnly /></label><small>手机号用于恢复身份，当前不可直接修改；头像会跟随称呼首字更新。</small>{profileError && <div className="inline-error">{profileError}</div>}<button className="primary wide" disabled={loading || name.trim() === member.name} type="submit">保存个人信息</button></form></section></div>;
 }
 
 function DataBackupView({ backendURL, family, owner, loading, onExport, onRestore, onBack }: { backendURL: string; family: Family; owner: boolean; loading: boolean; onExport: () => Promise<void>; onRestore: (backup: FamilyBackup) => void; onBack: () => void }) {
@@ -859,7 +881,7 @@ function DataBackupView({ backendURL, family, owner, loading, onExport, onRestor
     }
   }
 
-  return <div className="page-stack"><SettingsBack eyebrow="DATA BACKUP" title="导出与恢复" onBack={onBack} /><LocalBackupPanel backendURL={backendURL} familyID={family.id} /><section className="card backup-card"><div className="backup-block"><BackupIcon kind="download" /><div><h3>从服务器导出最新备份</h3><p>需要联网。包含计分规则、打卡、豁免、周报、复盘周期、菜价和店铺，不包含登录令牌。</p></div><button className="primary" disabled={loading} onClick={() => void onExport()}>导出 JSON</button></div><div className="backup-warning">备份包含手机号和家庭记录，请存放在可信位置，不要发送给无关人员。</div></section><section className="card backup-card"><div className="backup-block"><BackupIcon kind="restore" /><div><h3>从备份恢复</h3><p>{owner ? "仅支持恢复同一个家庭、相同成员组成的备份；当前登录凭证会保留。" : "只有家庭创建者可以执行恢复。"}</p></div>{owner && <label className="restore-file"><input type="file" accept="application/json,.json" disabled={loading} onChange={(event) => void selectBackup(event)} /><span>选择备份文件</span></label>}</div>{backupError && <div className="inline-error">{backupError}</div>}<small>当前家庭：{family.name} · {family.id}</small></section></div>;
+  return <div className="page-stack settings-page"><SettingsBack eyebrow="留存记录 · 安心恢复" title="导出与恢复" onBack={onBack} /><LocalBackupPanel backendURL={backendURL} familyID={family.id} /><section className="card backup-card"><div className="backup-block"><BackupIcon kind="download" /><div><h3>从服务器导出最新备份</h3><p>需要联网。包含计分规则、打卡、豁免、周报、复盘周期、菜价和店铺，不包含登录令牌。</p></div><button className="primary" disabled={loading} onClick={() => void onExport()}>导出 JSON</button></div><div className="backup-warning">备份包含手机号和家庭记录，请存放在可信位置，不要发送给无关人员。</div></section><section className="card backup-card"><div className="backup-block"><BackupIcon kind="restore" /><div><h3>从备份恢复</h3><p>{owner ? "仅支持恢复同一个家庭、相同成员组成的备份；当前登录凭证会保留。" : "只有家庭创建者可以执行恢复。"}</p></div>{owner && <label className="restore-file"><input type="file" accept="application/json,.json" disabled={loading} onChange={(event) => void selectBackup(event)} /><span>选择备份文件</span></label>}</div>{backupError && <div className="inline-error">{backupError}</div>}<small>当前家庭：{family.name} · {family.id}</small></section></div>;
 }
 
 function BackupIcon({ kind }: { kind: "download" | "restore" }) {
@@ -870,10 +892,10 @@ function ReviewView({ family, loading, owner, onCompleteReview, onBack }: { fami
   const metrics = buildReviewMetrics(family);
   const review = family.rewardReview;
   return (
-    <div className="page-stack">
-      <SettingsBack eyebrow="30-DAY REVIEW" title="30 天规则复盘" onBack={onBack} />
+    <div className="page-stack settings-page">
+      <SettingsBack eyebrow="一起回顾最近的睡眠习惯" title="30 天规则复盘" onBack={onBack} />
       <section className="card review-overview">
-        <div><span>本周期</span><strong className="review-period"><span>{metrics.start}</span>{metrics.start !== metrics.end && <span>至 {metrics.end}</span>}</strong><small>已统计 {metrics.elapsedDays} 天</small></div>
+        <div><span>本周期</span><strong className="review-period"><span>{reportDate(metrics.start, true)}</span>{metrics.start !== metrics.end && <span>至 {reportDate(metrics.end, true)}</span>}</strong><small>已统计 {metrics.elapsedDays} 天</small></div>
         <div><span>双人完成度</span><strong>{metrics.completionRate}%</strong><small>豁免按有效记录计算</small></div>
         <div><span>完整周奖励参考</span><strong>{metrics.rewardReference} 元</strong><small>{metrics.rewardWeeks} 个完整周，仍需手工结算</small></div>
       </section>
@@ -887,7 +909,7 @@ function ReviewView({ family, loading, owner, onCompleteReview, onBack }: { fami
           </article>
         ))}
       </section>
-      <section className="card review-checklist"><span className="eyebrow">TALK TOGETHER</span><h3>建议一起确认</h3><ul><li>平均入睡时间是否正在接近目标？</li><li>积分和罚金是否仍有激励作用，而不是形成压力？</li><li>每周最高 300 元的奖励预算是否合适？</li><li>豁免次数是否够用，是否被当成普通补卡使用？</li></ul><p>本页面只用于复盘规则，不生成账单或自动结算。</p></section>
+      <section className="card review-checklist"><h3>建议一起确认</h3><ul><li>平均入睡时间是否正在接近目标？</li><li>积分和罚金是否仍有激励作用，而不是形成压力？</li><li>每周最高 300 元的奖励预算是否合适？</li><li>豁免次数是否够用，是否被当成普通补卡使用？</li></ul><p>本页面只用于复盘规则，不生成账单或自动结算。</p></section>
       {review?.due && owner && <button className="primary wide" disabled={loading} onClick={onCompleteReview}>双方已复盘，开始新的 30 天周期</button>}
       {review?.due && !owner && <p className="review-owner-note">共同复盘完成后，由创建者开始新的 30 天周期。</p>}
     </div>
@@ -895,7 +917,7 @@ function ReviewView({ family, loading, owner, onCompleteReview, onBack }: { fami
 }
 
 function RewardRulesView({ onBack }: { onBack: () => void }) {
-  return <div className="page-stack"><SettingsBack eyebrow="BUILT-IN REWARD" title="奖励计算规则" onBack={onBack} /><section className="card reward-rules-card"><p className="rule-intro">每周奖励由“个人奖励”和“双人累计奖励”组成。当周至少有 5 个有效记录日且累计 5 分，即可获得首档奖励；豁免日计入有效记录。合计最高 <b>300 元</b>。</p><RuleTable title="个人周奖励" caption="满足 5 个有效记录日后，个人奖励由对方转入共同账户，每人最高 100 元。" firstLabel="个人积分" rows={personalRewardTiers} zeroLabel="4.9 分及以下" /><RuleTable title="双人累计奖励" caption="需两人都记录至少 5 天且各获得 5 分；奖励由双方各承担 50%。" firstLabel="双人合计" rows={familyRewardTiers} zeroLabel="任一人未达个人门槛" /><div className="payment-rules"><div><b>个人奖励怎么付</b><span>A 的奖励由 B 付，B 的奖励由 A 付，都转入共同账户。</span></div><div><b>罚金不变</b><span>一人熬夜时罚金给对方；两人同时熬夜时各自转入共同账户。</span></div><div><b>300 元的口径</b><span>仅限积分奖励，不包含罚金；奖励与罚金不相互抵消。</span></div></div></section></div>;
+  return <div className="page-stack settings-page"><SettingsBack eyebrow="每一份坚持，都值得奖励" title="奖励计算规则" onBack={onBack} /><section className="card reward-rules-card"><p className="rule-intro">每周奖励由“个人奖励”和“双人累计奖励”组成。当周至少有 5 个有效记录日且累计 5 分，即可获得首档奖励；豁免日计入有效记录。合计最高 <b>300 元</b>。</p><RuleTable title="个人周奖励" caption="满足 5 个有效记录日后，个人奖励由对方转入共同账户，每人最高 100 元。" firstLabel="个人积分" rows={personalRewardTiers} zeroLabel="4.9 分及以下" /><RuleTable title="双人累计奖励" caption="需两人都记录至少 5 天且各获得 5 分；奖励由双方各承担 50%。" firstLabel="双人合计" rows={familyRewardTiers} zeroLabel="任一人未达个人门槛" /><div className="payment-rules"><div><b>个人奖励怎么付</b><span>A 的奖励由 B 付，B 的奖励由 A 付，都转入共同账户。</span></div><div><b>罚金不变</b><span>一人熬夜时罚金给对方；两人同时熬夜时各自转入共同账户。</span></div><div><b>300 元的口径</b><span>仅限积分奖励，不包含罚金；奖励与罚金不相互抵消。</span></div></div></section></div>;
 }
 
 function RuleTable({ title, caption, firstLabel, rows, zeroLabel }: { title: string; caption: string; firstLabel: string; rows: readonly { range: string; added: number; total: number }[]; zeroLabel: string }) {
@@ -905,7 +927,7 @@ function RuleTable({ title, caption, firstLabel, rows, zeroLabel }: { title: str
 function LevelRulesView({ settings, memberCount, onBack }: { settings: Settings; memberCount: number; onBack: () => void }) {
   const personalMaximum = weeklyMaximum(settings);
   const familyMaximum = personalMaximum * memberCount;
-  return <div className="page-stack"><SettingsBack eyebrow="SCORE LEVEL" title="等级计算说明" onBack={onBack} /><section className="card level-rules-card"><p>个人等级使用“个人本周得分 ÷ 个人理论最高分”，双人等级使用“两人总分 ÷ 两人理论最高分之和”。</p><div className="maximum-row"><span>本周个人最高 <b>{personalMaximum} 分</b></span><span>本周家庭最高 <b>{familyMaximum} 分</b></span></div><ul className="level-rule-list"><li className="grade-bloom"><b>晨光</b><span>达到 80% 及以上</span></li><li className="grade-fresh"><b>新芽</b><span>达到 55% 及以上</span></li><li className="grade-calm"><b>清风</b><span>达到 25% 及以上</span></li><li className="grade-steady"><b>守夜</b><span>得分为 0 或以上</span></li><li className="grade-reset"><b>重启</b><span>得分低于 0</span></li></ul><small>历史周报使用归档时冻结的计分规则计算理论最高分。</small></section></div>;
+  return <div className="page-stack settings-page"><SettingsBack eyebrow="用小小进步，点亮每一周" title="等级计算说明" onBack={onBack} /><section className="card level-rules-card"><p>个人等级使用“个人本周得分 ÷ 个人理论最高分”，双人等级使用“两人总分 ÷ 两人理论最高分之和”。</p><div className="maximum-row"><span>本周个人最高 <b>{personalMaximum} 分</b></span><span>本周家庭最高 <b>{familyMaximum} 分</b></span></div><ul className="level-rule-list"><li className="grade-bloom"><b>晨光</b><span>达到 80% 及以上</span></li><li className="grade-fresh"><b>新芽</b><span>达到 55% 及以上</span></li><li className="grade-calm"><b>清风</b><span>达到 25% 及以上</span></li><li className="grade-steady"><b>守夜</b><span>得分为 0 或以上</span></li><li className="grade-reset"><b>重启</b><span>得分低于 0</span></li></ul><small>历史周报使用归档时冻结的计分规则计算理论最高分。</small></section></div>;
 }
 
 function SettingsBack({ eyebrow, title, onBack }: { eyebrow: string; title: string; onBack: () => void }) {
@@ -928,18 +950,29 @@ function TierEditor({ title, tiers, disabled, onChange }: { title: string; tiers
   }
 
   return (
-    <div className="tier-editor"><h3>{title}</h3><div className="tier-head"><span>截至</span><span>积分</span><span>罚金</span></div>{tiers.map((tier, index) => (
+    <div className="tier-editor"><h3>{title}</h3><div className="tier-head"><span>截至</span><span>积分</span><span>罚金 / 元</span></div>{tiers.map((tier, index) => (
       <div className="tier-row" key={index}>
-        {index === tiers.length - 1 ? <span className="after">更晚</span> : <input type="time" step="300" required disabled={disabled} value={tier.end} onChange={(event) => onChange(index, "end", event.target.value)} />}
-        <input key={`score-${tier.score}`} type="number" inputMode="decimal" step="0.1" disabled={disabled} defaultValue={tier.score} onBlur={(event) => commitNumber(event, index, "score", tier.score)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
-        <input key={`fine-${tier.fine}`} type="number" inputMode="numeric" disabled={disabled} defaultValue={tier.fine} onBlur={(event) => commitNumber(event, index, "fine", tier.fine)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+        {index === tiers.length - 1 ? <span className="after">更晚</span> : <input aria-label={`${title}第 ${index + 1} 档截至时间`} type="time" step="300" required disabled={disabled} value={tier.end} onChange={(event) => onChange(index, "end", event.target.value)} />}
+        <input aria-label={`${title}第 ${index + 1} 档积分`} key={`score-${tier.score}`} type="number" inputMode="decimal" step="0.1" disabled={disabled} defaultValue={tier.score} onBlur={(event) => commitNumber(event, index, "score", tier.score)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+        <input aria-label={`${title}第 ${index + 1} 档罚金`} key={`fine-${tier.fine}`} type="number" inputMode="numeric" disabled={disabled} defaultValue={tier.fine} onBlur={(event) => commitNumber(event, index, "fine", tier.fine)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
       </div>
     ))}</div>
   );
 }
 
 function NavButton({ active, icon, label, badge = 0, onClick }: { active: boolean; icon: string; label: string; badge?: number; onClick: () => void }) {
-  return <button className={active ? "active" : ""} onClick={onClick}><span>{icon}{badge > 0 && <b className="nav-badge">{badge}</b>}</span>{label}</button>;
+  return <button className={active ? "active" : ""} aria-current={active ? "page" : undefined} onClick={onClick}><span><AppIcon name={icon} />{badge > 0 && <b className="nav-badge">{badge}</b>}</span>{label}</button>;
+}
+
+function AppIcon({ name }: { name: string }) {
+  const paths: Record<string, string> = {
+    "☾": "M20.5 13.2A8.7 8.7 0 0 1 10.8 3.5 8.8 8.8 0 1 0 20.5 13.2Z",
+    "✓": "M8 4H6a2 2 0 0 0-2 2v14h16V6a2 2 0 0 0-2-2h-2M9 3h6v4H9zM8 13l3 3 5-6",
+    "⌕": "m4 9 2 11h12l2-11ZM8 9l4-6 4 6M9 13v3m6-3v3M3 9h18",
+    "▥": "M4 3v17h17M8 15v-4m5 4V6m5 9V9",
+    "⚙": "M4 7h16M4 17h16M9 4v6m6 4v6",
+  };
+  return <svg className="app-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] ?? paths["☾"]} /></svg>;
 }
 
 function Stat({ label, value, suffix = "" }: { label: string; value: string; suffix?: string }) {
@@ -1186,6 +1219,11 @@ function validateSettingsDraft(settings: Settings) {
     }
   }
   return "";
+}
+
+function reportDate(date: string, includeYear = false) {
+  const [year, month, day] = date.split("-");
+  return `${includeYear ? `${year}.` : ""}${Number(month)}.${day}`;
 }
 
 function formatDate(date: string) {

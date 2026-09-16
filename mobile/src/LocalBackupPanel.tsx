@@ -29,7 +29,7 @@ export function LocalBackupPanel({ backendURL, familyID }: { backendURL?: string
 
   const syncError = backendURL ? backupStatus(backendURL) : "";
   return <section className="card backup-card local-backups">
-    <div><span className="eyebrow">LOCAL BACKUP</span><h2>本机完整备份</h2></div>
+    <div><span className="eyebrow">离线也能安心留存</span><h2>本机完整备份</h2></div>
     <p className="muted">联网同步后自动保存打卡、规则、周报、菜价和店铺等完整家庭数据；保留最近两份不同版本。断网或登录失效时仍可导出。</p>
     {!backups.length && <p className="muted">本机尚无完整备份，需要成功连接原家庭服务器后生成。</p>}
     {backups.map((item) => <div className="local-backup-entry" key={`${item.backendURL}:${item.latest.family.id}`}>

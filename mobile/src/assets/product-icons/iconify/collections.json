@@ -1,0 +1,175 @@
+{
+  "lucide": {
+    "name": "Lucide",
+    "total": 1837,
+    "author": {
+      "name": "Lucide Contributors",
+      "url": "https://github.com/lucide-icons/lucide"
+    },
+    "license": {
+      "title": "ISC",
+      "spdx": "ISC",
+      "url": "https://github.com/lucide-icons/lucide/blob/main/LICENSE"
+    },
+    "samples": [
+      "circle-check",
+      "award",
+      "house",
+      "check",
+      "mountain",
+      "chevron-up"
+    ],
+    "height": 24,
+    "category": "UI 24px",
+    "tags": [
+      "Precise Shapes",
+      "Has Padding",
+      "Uses Stroke"
+    ],
+    "palette": false
+  },
+  "lucide-lab": {
+    "name": "Lucide Lab",
+    "total": 373,
+    "author": {
+      "name": "Lucide Contributors",
+      "url": "https://github.com/lucide-icons/lucide-lab"
+    },
+    "license": {
+      "title": "ISC",
+      "spdx": "ISC",
+      "url": "https://github.com/lucide-icons/lucide-lab/blob/main/LICENSE"
+    },
+    "samples": [
+      "venn",
+      "card-credit",
+      "pac-man",
+      "cent",
+      "candlestick-big-lit",
+      "gearbox"
+    ],
+    "height": 24,
+    "category": "UI 24px",
+    "tags": [
+      "Precise Shapes",
+      "Has Padding",
+      "Uses Stroke"
+    ],
+    "palette": false
+  },
+  "tdesign": {
+    "name": "TDesign Icons",
+    "total": 2356,
+    "author": {
+      "name": "TDesign",
+      "url": "https://github.com/Tencent/tdesign-icons"
+    },
+    "license": {
+      "title": "MIT",
+      "spdx": "MIT",
+      "url": "https://github.com/Tencent/tdesign-icons/blob/main/LICENSE"
+    },
+    "samples": [
+      "activity",
+      "doge",
+      "dam",
+      "view-list",
+      "rotation",
+      "laptop"
+    ],
+    "height": 24,
+    "category": "UI 24px",
+    "tags": [
+      "Uses Stroke"
+    ],
+    "palette": false
+  },
+  "icon-park-outline": {
+    "name": "IconPark Outline",
+    "total": 2658,
+    "version": "1.4.2",
+    "author": {
+      "name": "ByteDance",
+      "url": "https://github.com/bytedance/IconPark"
+    },
+    "license": {
+      "title": "Apache 2.0",
+      "spdx": "Apache-2.0",
+      "url": "https://github.com/bytedance/IconPark/blob/master/LICENSE"
+    },
+    "samples": [
+      "add-one",
+      "english-mustache",
+      "basketball-clothes",
+      "sort",
+      "lightning",
+      "pinwheel"
+    ],
+    "height": 24,
+    "category": "UI 24px",
+    "tags": [
+      "Precise Shapes",
+      "Has Padding",
+      "Uses Stroke"
+    ],
+    "palette": false
+  },
+  "openmoji": {
+    "name": "OpenMoji",
+    "total": 4544,
+    "author": {
+      "name": "OpenMoji",
+      "url": "https://github.com/hfg-gmuend/openmoji"
+    },
+    "license": {
+      "title": "CC BY-SA 4.0",
+      "spdx": "CC-BY-SA-4.0",
+      "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+    },
+    "samples": [
+      "bicycle",
+      "bow-and-arrow",
+      "full-moon-face",
+      "plus",
+      "solar-cell",
+      "battery"
+    ],
+    "height": 36,
+    "displayHeight": 18,
+    "category": "Emoji",
+    "tags": [
+      "Precise Shapes",
+      "Has Padding",
+      "Uses Stroke"
+    ],
+    "palette": true
+  },
+  "hugeicons": {
+    "name": "Huge Icons",
+    "total": 5979,
+    "author": {
+      "name": "Hugeicons",
+      "url": "https://icon-sets.iconify.design/icon-sets/hugeicons/"
+    },
+    "license": {
+      "title": "MIT",
+      "spdx": "MIT",
+      "url": "https://github.com/hugeicons/hugeicons-react/blob/main/LICENSE.md"
+    },
+    "samples": [
+      "analytics-up",
+      "android",
+      "search-02",
+      "tick-02",
+      "not-equal-sign",
+      "text-align-left-01"
+    ],
+    "height": 24,
+    "category": "UI 24px",
+    "tags": [
+      "Has Padding",
+      "Uses Stroke"
+    ],
+    "palette": false
+  }
+}

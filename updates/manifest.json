@@ -1,11 +1,11 @@
 {
-  "webVersion": "1.3.8",
-  "bundleUrl": "/updates/web/web-1.3.8.zip",
-  "sha256": "870b8e021cb4de07e329755da6fbbf7fd5971ff7316b2384721f69cfbdc46908",
+  "webVersion": "1.3.9",
+  "bundleUrl": "/updates/web/web-1.3.9.zip",
+  "sha256": "bd9c9a3d33214778a4659184636ab3a9a2ec786c5b0a336a29ddcf45e7d75cbe",
   "minimumNativeVersionCode": 7,
   "androidVersionCode": 7,
   "androidVersionName": "1.3.1",
   "androidUrl": "/updates/android/early-sleep-1.3.1.apk",
   "androidSha256": "02d4bd70a61c6df9941b86e2b130090a283ad844966fe34e83d46d3b6a89cfe7",
-  "publishedAt": "2026-09-16T11:02:51Z"
+  "publishedAt": "2026-09-17T09:50:07Z"
 }

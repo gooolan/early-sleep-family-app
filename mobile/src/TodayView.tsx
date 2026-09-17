@@ -40,7 +40,7 @@ export function TodayView({ family, loading, onCheckIn, onReview, reviewCount }:
           <div className="dream-completion"><span>家庭完成度</span><div><strong>{family.activeWeek.summary.completionRate}<small>%</small></strong></div><div className="dream-progress" role="progressbar" aria-label="家庭本周完成度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={family.activeWeek.summary.completionRate}><span style={{ width: `${family.activeWeek.summary.completionRate}%` }} /></div></div>
         </div>
         <table className="dream-member-table" aria-label="两位成员的本周统计">
-          <thead><tr><th scope="col">成员</th><th scope="col">本周分值</th><th scope="col">打卡</th><th scope="col">平均入睡</th><th scope="col">罚金</th></tr></thead>
+          <thead><tr><th scope="col">成员</th><th scope="col">本周分值</th><th scope="col">打卡</th><th scope="col">平均入睡</th></tr></thead>
           <tbody>{family.members.map((member) => {
             const summary = family.activeWeek.summary.members[member.id];
             const score = summary?.totalScore ?? 0;
@@ -50,7 +50,6 @@ export function TodayView({ family, loading, onCheckIn, onReview, reviewCount }:
               <td aria-label={member.id === me.id ? "我的本周分值" : `${member.name}的本周分值`}><span className={`dream-member-score grade-${level.tone}`} title={level.name}>{signedScore(score)}</span></td>
               <td>{summary?.checkinDays ?? 0}<small>/{weekDays}</small></td>
               <td className={!summary?.averageSleepTime || summary.averageSleepTime === "--:--" ? "dream-empty-value" : undefined}>{summary?.averageSleepTime && summary.averageSleepTime !== "--:--" ? summary.averageSleepTime : "—"}</td>
-              <td>{summary?.totalFine ?? 0}<small>元</small></td>
             </tr>;
           })}</tbody>
         </table>

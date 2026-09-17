@@ -225,11 +225,10 @@
 .dream-member-table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: right; font-size: 14px; }
 .dream-member-table th, .dream-member-table td { padding: 11px 0; border-bottom: 1px solid #eef2f7; white-space: nowrap; vertical-align: middle; }
 .dream-member-table thead th { color: var(--muted); font-size: 11px; font-weight: 400; padding-top: 3px; padding-bottom: 8px; }
-.dream-member-table th:first-child { text-align: left; width: 24%; }
-.dream-member-table th:nth-child(2) { width: 20%; }
-.dream-member-table th:nth-child(3) { width: 15%; }
-.dream-member-table th:nth-child(4) { width: 25%; }
-.dream-member-table th:nth-child(5) { width: 16%; }
+.dream-member-table th:first-child { text-align: left; width: 30%; }
+.dream-member-table th:nth-child(2) { width: 24%; }
+.dream-member-table th:nth-child(3) { width: 18%; }
+.dream-member-table th:nth-child(4) { width: 28%; }
 .dream-member-table tbody th { font-weight: 600; }
 .dream-member-table .current-member th { color: #42659c; }
 .dream-member-table .dream-empty-value { color: #93a2b6; }
